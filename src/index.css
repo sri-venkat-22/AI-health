@@ -1,0 +1,182 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AI Integrative Multilingual Telehealth Orchestrator
+   Calm clinical design system — teal/white, trustworthy, accessible.
+   All colors MUST be HSL. */
+
+@layer base {
+  :root {
+    --background: 180 33% 98%;
+    --foreground: 195 40% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 195 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 195 40% 12%;
+
+    /* Teal — clinical, calm, healing */
+    --primary: 184 70% 32%;
+    --primary-foreground: 180 30% 98%;
+    --primary-glow: 178 75% 48%;
+    --primary-soft: 180 55% 92%;
+
+    --secondary: 180 25% 94%;
+    --secondary-foreground: 195 40% 18%;
+
+    --muted: 180 20% 95%;
+    --muted-foreground: 195 15% 42%;
+
+    --accent: 158 55% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Risk / safety semantics */
+    --risk-emergent: 0 78% 52%;
+    --risk-urgent: 24 92% 54%;
+    --risk-routine: 200 85% 48%;
+    --risk-selfcare: 158 55% 45%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 30 80% 15%;
+
+    --destructive: 0 78% 52%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 185 25% 88%;
+    --input: 185 25% 90%;
+    --ring: 184 70% 32%;
+
+    --radius: 1rem;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(184 70% 32% / 0.04), hsl(178 75% 48% / 0.10) 50%, hsl(158 55% 45% / 0.08));
+    --gradient-primary: linear-gradient(135deg, hsl(184 70% 28%), hsl(178 75% 42%));
+    --gradient-soft: linear-gradient(180deg, hsl(180 33% 98%), hsl(180 40% 96%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(180 25% 98%));
+    --gradient-aurora: radial-gradient(at 20% 10%, hsl(178 75% 48% / 0.18) 0px, transparent 50%),
+                       radial-gradient(at 80% 20%, hsl(158 55% 55% / 0.16) 0px, transparent 50%),
+                       radial-gradient(at 60% 90%, hsl(184 70% 50% / 0.14) 0px, transparent 50%);
+
+    /* Shadows */
+    --shadow-soft: 0 1px 2px hsl(195 40% 12% / 0.04), 0 4px 16px hsl(184 70% 32% / 0.06);
+    --shadow-elegant: 0 4px 12px hsl(195 40% 12% / 0.06), 0 20px 40px -12px hsl(184 70% 32% / 0.18);
+    --shadow-glow: 0 0 0 1px hsl(184 70% 32% / 0.10), 0 12px 32px -8px hsl(178 75% 48% / 0.35);
+
+    /* Motion */
+    --transition-smooth: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --sidebar-background: 180 33% 98%;
+    --sidebar-foreground: 195 40% 18%;
+    --sidebar-primary: 184 70% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 180 25% 94%;
+    --sidebar-accent-foreground: 195 40% 18%;
+    --sidebar-border: 185 25% 88%;
+    --sidebar-ring: 184 70% 32%;
+
+    --app-font-sans: 'Inter', system-ui, sans-serif;
+    --app-font-display: 'Fraunces', Georgia, serif;
+  }
+
+  .dark {
+    --background: 195 45% 6%;
+    --foreground: 180 30% 95%;
+    --card: 195 40% 9%;
+    --card-foreground: 180 30% 95%;
+    --popover: 195 40% 9%;
+    --popover-foreground: 180 30% 95%;
+    --primary: 178 75% 52%;
+    --primary-foreground: 195 45% 8%;
+    --primary-glow: 178 80% 65%;
+    --primary-soft: 184 50% 18%;
+    --secondary: 195 30% 14%;
+    --secondary-foreground: 180 30% 95%;
+    --muted: 195 30% 14%;
+    --muted-foreground: 180 15% 65%;
+    --accent: 158 60% 50%;
+    --accent-foreground: 195 45% 8%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 195 30% 18%;
+    --input: 195 30% 18%;
+    --ring: 178 75% 52%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+    font-family: var(--app-font-sans);
+  }
+  html { scroll-behavior: smooth; }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--app-font-display); font-optical-sizing: auto; letter-spacing: -0.02em; }
+  .font-sans-pro { font-family: var(--app-font-sans); }
+  .bg-aurora { background-image: var(--gradient-aurora); }
+  .bg-gradient-primary { background-image: var(--gradient-primary); }
+  .bg-gradient-soft { background-image: var(--gradient-soft); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .transition-smooth { transition: var(--transition-smooth); }
+  .text-balance { text-wrap: balance; }
+}
+
+html[data-language="hi"],
+html[data-language="mr"] {
+  --app-font-sans: 'Noto Sans Devanagari', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Devanagari', 'Inter', system-ui, sans-serif;
+}
+
+html[data-language="ta"] {
+  --app-font-sans: 'Noto Sans Tamil', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Tamil', 'Inter', system-ui, sans-serif;
+}
+
+html[data-language="te"] {
+  --app-font-sans: 'Noto Sans Telugu', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Telugu', 'Inter', system-ui, sans-serif;
+}
+
+html[data-language="ml"] {
+  --app-font-sans: 'Noto Sans Malayalam', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Malayalam', 'Inter', system-ui, sans-serif;
+}
+
+html[data-language="bn"] {
+  --app-font-sans: 'Noto Sans Bengali', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Bengali', 'Inter', system-ui, sans-serif;
+}
+
+html[data-language="kn"] {
+  --app-font-sans: 'Noto Sans Kannada', 'Inter', system-ui, sans-serif;
+  --app-font-display: 'Noto Sans Kannada', 'Inter', system-ui, sans-serif;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+  70% { box-shadow: 0 0 0 16px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+.animate-pulse-ring { animation: pulse-ring 2.4s cubic-bezier(0.66, 0, 0, 1) infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float { animation: float 6s ease-in-out infinite; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
