@@ -1,4 +1,5 @@
 import { getLanguageNative, type LanguageCode } from "@/lib/languages";
+import { sanitizeTextList } from "@/lib/textSanitizers";
 import { translateTextBatch } from "@/lib/translationService";
 import type { IntegrativePlan, LocalizedIntegrativePlan, Modality, TranslationSummary } from "@/lib/types";
 
@@ -215,14 +216,16 @@ function buildLocalizedTranslation(plan: IntegrativePlan, langCode: LanguageCode
     return {
       ...localizedSummary,
       language: getLanguageNative(langCode),
-      top_actions: [...localizedSummary.top_actions],
+      top_actions: sanitizeTextList(localizedSummary.top_actions),
+      glossary_hits: sanitizeTextList(localizedSummary.glossary_hits),
     };
   }
 
   return {
     ...plan.translation,
     language: getLanguageNative(langCode),
-    top_actions: [...plan.translation.top_actions],
+    top_actions: sanitizeTextList(plan.translation.top_actions),
+    glossary_hits: sanitizeTextList(plan.translation.glossary_hits),
   };
 }
 
@@ -299,7 +302,8 @@ export async function localizePlanForLanguage(
   localizedPlan.translation = {
     ...localizedPlan.translation,
     language: getLanguageNative(langCode),
-    glossary_hits: [...(plan.translations[langCode]?.glossary_hits ?? plan.translation.glossary_hits ?? [])],
+    top_actions: sanitizeTextList(localizedPlan.translation.top_actions),
+    glossary_hits: sanitizeTextList(plan.translations[langCode]?.glossary_hits ?? plan.translation.glossary_hits ?? []),
     quality_mode:
       plan.translations[langCode]?.quality_mode ??
       plan.translation.quality_mode,

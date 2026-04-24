@@ -1,6 +1,7 @@
 import { LANGUAGES, getLanguageName, getLanguageNative } from "@/lib/languages";
 import { dedupeProvenance, retrieveEvidence } from "@/lib/evidence";
 import { getOfflineModelSettings } from "@/lib/localStore";
+import { sanitizeTextList } from "@/lib/textSanitizers";
 import {
   DEFAULT_OFFLINE_MODEL_SETTINGS,
   generateStructuredOffline,
@@ -1153,17 +1154,21 @@ function buildTranslationBundle(
   const localizedSummary = localizeText(englishSummary, langCode);
   const localizedCarePath = localizeText(englishCarePath, langCode);
   const localizedActions = topActions.map((action) => localizeText(action, langCode));
+  const sanitizedTopActions = sanitizeTextList(localizedActions.map((action) => action.text));
+  const sanitizedGlossaryHits = sanitizeTextList(
+    dedupe([
+      ...localizedSummary.glossaryHits,
+      ...localizedCarePath.glossaryHits,
+      ...localizedActions.flatMap((action) => action.glossaryHits),
+    ]),
+  );
 
   return {
     language: getLanguageNative(langCode),
     summary: localizedSummary.text,
     care_path: localizedCarePath.text,
-    top_actions: localizedActions.map((action) => action.text),
-    glossary_hits: dedupe([
-      ...localizedSummary.glossaryHits,
-      ...localizedCarePath.glossaryHits,
-      ...localizedActions.flatMap((action) => action.glossaryHits),
-    ]),
+    top_actions: sanitizedTopActions,
+    glossary_hits: sanitizedGlossaryHits,
     quality_mode,
     back_translation_confidence: null,
   };
@@ -1241,12 +1246,14 @@ function buildTranslations(
   specialistReferral: string | undefined,
   usedOfflineModel: boolean,
 ) {
-  const topActions = topActionsOverride.length > 0
-    ? topActionsOverride
-    : carePathSteps
-        .filter((step) => step.selected)
-        .map((step) => `${step.modality}: ${step.reason}`)
-        .slice(0, 4);
+  const topActions = sanitizeTextList(
+    topActionsOverride.length > 0
+      ? topActionsOverride
+      : carePathSteps
+          .filter((step) => step.selected)
+          .map((step) => `${step.modality}: ${step.reason}`)
+          .slice(0, 4),
+  );
 
   const englishSummary = buildEnglishSummary({
     riskLevel,

@@ -14,6 +14,22 @@ const PREFERRED_MODEL_ORDER = [
   "qwen3:latest",
 ] as const;
 
+function formatOllamaError(error: unknown, baseUrl: string) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return `The local Ollama request timed out at ${baseUrl}. Check that Ollama is running and the model is loaded.`;
+  }
+
+  if (error instanceof TypeError || (error instanceof Error && /failed to fetch/i.test(error.message))) {
+    return `Unable to reach the local Ollama API at ${baseUrl}. Start Ollama with \`ollama serve\` and verify the model is installed.`;
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return `Unable to reach the local Ollama API at ${baseUrl}.`;
+}
+
 function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -109,7 +125,7 @@ export async function getOfflineModelStatus(
           : `No supported Ollama model is installed. Expected one of: ${PREFERRED_MODEL_ORDER.join(", ")}.`,
       };
     } catch (error) {
-      lastError = error instanceof Error ? error.message : "Unable to reach the local Ollama API.";
+      lastError = formatOllamaError(error, baseUrl);
     } finally {
       request.clear();
     }
@@ -186,6 +202,8 @@ export async function generateStructuredOffline<T>(input: {
       output: parseJsonCandidate<T>(payload.response),
       status,
     };
+  } catch (error) {
+    throw new Error(formatOllamaError(error, settings.baseUrl));
   } finally {
     request.clear();
   }

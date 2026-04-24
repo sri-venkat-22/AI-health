@@ -17,6 +17,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LANGUAGES, getLanguageNative, type LanguageCode } from "@/lib/languages";
+import { sanitizeTextList } from "@/lib/textSanitizers";
 import { getLocalizedModalityLabel, getLocalizedRouteLabel, localizePlanForLanguage } from "@/lib/planLocalization";
 import type { EvidenceTier, IntegrativePlan, Modality, RiskLevel } from "@/lib/types";
 
@@ -313,6 +314,10 @@ const Results = () => {
     () => (plan ? buildPrioritizedTreatmentView(plan) : null),
     [plan],
   );
+  const summaryActions = useMemo(
+    () => (plan ? sanitizeTextList(plan.translation.top_actions) : []),
+    [plan],
+  );
 
   if (loading || !sourcePlan) {
     return (
@@ -465,9 +470,9 @@ const Results = () => {
           <p className="text-lg leading-relaxed text-foreground" lang={language}>
             {plan.translation.summary}
           </p>
-          {plan.translation.top_actions.length > 0 && (
+          {summaryActions.length > 0 && (
             <ul className="mt-5 space-y-2">
-              {plan.translation.top_actions.map((action, index) => (
+              {summaryActions.map((action, index) => (
                 <li key={index} className="flex gap-3">
                   <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                   <span>{action}</span>
