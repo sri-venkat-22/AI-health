@@ -162,9 +162,7 @@ export function createIntakeSessionRecord(
     alcohol_use: intake.alcohol_use ?? null,
     sleep_quality: intake.sleep_quality ?? null,
     appetite_status: intake.appetite_status ?? null,
-    recent_travel: intake.recent_travel ?? null,
     recent_exposure: intake.recent_exposure ?? null,
-    preferences: intake.preferences ?? [],
     normalized_symptoms: normalizedSymptoms,
     created_at: new Date().toISOString(),
   };
@@ -321,15 +319,42 @@ export function savePlanDecision(input: {
 }
 
 export function getOfflineModelSettings(): OfflineModelSettings {
-  return readStorage<OfflineModelSettings>(
+  const stored = readStorage<OfflineModelSettings>(
     STORAGE_KEYS.offlineModelSettings,
     DEFAULT_OFFLINE_MODEL_SETTINGS,
   );
+  const shouldUpgradeLegacyDefault =
+    !stored.model || stored.model === "qwen3:8b" || stored.model === "qwen3:latest";
+  const normalized: OfflineModelSettings = {
+    ...DEFAULT_OFFLINE_MODEL_SETTINGS,
+    ...stored,
+    baseUrl: (stored.baseUrl || DEFAULT_OFFLINE_MODEL_SETTINGS.baseUrl).replace(
+      "http://localhost:",
+      "http://127.0.0.1:",
+    ),
+    model: shouldUpgradeLegacyDefault ? DEFAULT_OFFLINE_MODEL_SETTINGS.model : stored.model,
+  };
+
+  if (
+    normalized.baseUrl !== stored.baseUrl ||
+    normalized.model !== stored.model ||
+    normalized.enabled !== stored.enabled ||
+    normalized.temperature !== stored.temperature ||
+    normalized.timeoutMs !== stored.timeoutMs
+  ) {
+    writeStorage(STORAGE_KEYS.offlineModelSettings, normalized);
+  }
+
+  return normalized;
 }
 
 export function saveOfflineModelSettings(settings: OfflineModelSettings) {
-  writeStorage(STORAGE_KEYS.offlineModelSettings, settings);
-  return settings;
+  const normalized: OfflineModelSettings = {
+    ...settings,
+    baseUrl: settings.baseUrl.replace("http://localhost:", "http://127.0.0.1:"),
+  };
+  writeStorage(STORAGE_KEYS.offlineModelSettings, normalized);
+  return normalized;
 }
 
 export function seedDemoClinician() {

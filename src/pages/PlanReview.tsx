@@ -4,12 +4,14 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, History, Loader2, XCircle } fro
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStoredPlan, listPlanReviews, savePlanDecision } from "@/lib/localStore";
 import type { IntegrativePlan, PlanReviewRecord, StoredPlanRecord } from "@/lib/types";
 import { toast } from "sonner";
 
 const PlanReview = () => {
+  const { t } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -24,7 +26,7 @@ const PlanReview = () => {
     if (!id) return;
     const plan = getStoredPlan(id);
     if (!plan) {
-      toast.error("Plan not found");
+      toast.error(t("planNotFound"));
       navigate("/clinician/dashboard");
       return;
     }
@@ -33,7 +35,7 @@ const PlanReview = () => {
     setReviews(listPlanReviews(id));
     setEditablePlan(JSON.stringify(plan.plan_data, null, 2));
     setLoading(false);
-  }, [id, navigate]);
+  }, [id, navigate, t]);
 
   const parsedPreview = useMemo(() => {
     try {
@@ -55,7 +57,7 @@ const PlanReview = () => {
         try {
           nextPlan = JSON.parse(editablePlan) as IntegrativePlan;
         } catch {
-          throw new Error("The editable plan JSON is invalid. Please fix the JSON before saving.");
+          throw new Error(t("editablePlanInvalid"));
         }
       }
 
@@ -67,10 +69,10 @@ const PlanReview = () => {
         editedPlan: nextPlan,
       });
 
-      toast.success(`Plan ${decision}`);
+      toast.success(t("planDecisionSaved", { decision }));
       navigate("/clinician/dashboard");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to record clinician decision");
+      toast.error(error instanceof Error ? error.message : t("failedToRecordDecision"));
     } finally {
       setBusy(false);
     }
@@ -80,7 +82,7 @@ const PlanReview = () => {
     return (
       <div className="min-h-screen bg-background">
         <SiteHeader />
-        <div className="container py-12 text-center text-muted-foreground">Loading…</div>
+        <div className="container py-12 text-center text-muted-foreground">{t("loading")}</div>
       </div>
     );
   }
@@ -94,7 +96,7 @@ const PlanReview = () => {
       <main className="container py-10 max-w-6xl">
         <Button variant="ghost" asChild className="mb-6 rounded-full -ml-3">
           <Link to="/clinician/dashboard">
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to queue
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> {t("backToQueue")}
           </Link>
         </Button>
 
@@ -116,18 +118,18 @@ const PlanReview = () => {
                   {row.risk_level}
                 </span>
                 <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Status: {row.review_status}
+                  {t("statusLabel")}: {row.review_status}
                 </span>
               </div>
               <h1 className="font-display text-2xl font-semibold mb-2">{plan.care_path}</h1>
               <p className="text-muted-foreground leading-relaxed">{plan.triage_reasoning}</p>
               <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Confidence</div>
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">{t("confidence")}</div>
                   <div className="font-semibold">{(row.confidence * 100).toFixed(0)}%</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Back-translation</div>
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">{t("backTranslation")}</div>
                   <div className="font-semibold">
                     {row.back_translation_confidence != null
                       ? `${(row.back_translation_confidence * 100).toFixed(0)}%`
@@ -138,39 +140,39 @@ const PlanReview = () => {
             </div>
 
             <div className="rounded-3xl border border-border/70 bg-card p-7">
-              <h2 className="font-display text-xl font-semibold mb-4">Patient intake</h2>
+              <h2 className="font-display text-xl font-semibold mb-4">{t("patientIntakeTitle")}</h2>
               <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Patient hash</dt>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("patientHash")}</dt>
                   <dd>{intake.patient_hash}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Language</dt>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("language")}</dt>
                   <dd>{intake.language}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Duration</dt>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("durationLabel")}</dt>
                   <dd>
-                    {intake.duration} ({intake.duration_days} day{intake.duration_days === 1 ? "" : "s"})
+                    {intake.duration} ({intake.duration_days} {t(intake.duration_days === 1 ? "day" : "days")})
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Age / Sex</dt>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("ageSex")}</dt>
                   <dd>
                     {intake.age ?? "—"} / {intake.sex ?? "—"}
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Symptoms</dt>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("symptomsLabel")}</dt>
                   <dd className="mt-1">{intake.symptoms}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Comorbidities</dt>
-                  <dd>{intake.comorbidities || "none"}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("comorbidities")}</dt>
+                  <dd>{intake.comorbidities || t("none")}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">Medications</dt>
-                  <dd>{intake.medications || "none"}</dd>
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{t("medications")}</dt>
+                  <dd>{intake.medications || t("none")}</dd>
                 </div>
               </dl>
             </div>
@@ -179,7 +181,7 @@ const PlanReview = () => {
               <div className="rounded-3xl border border-warning/30 bg-warning/5 p-6">
                 <h2 className="font-display text-xl font-semibold mb-3 flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-warning" />
-                  Safety warnings
+                  {t("safetyWarnings")}
                 </h2>
                 <ul className="space-y-2">
                   {plan.warnings.map((warning, index) => (
@@ -195,16 +197,16 @@ const PlanReview = () => {
             )}
 
             <div className="rounded-3xl border border-border/70 bg-card p-7">
-              <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                <div>
-                  <h2 className="font-display text-xl font-semibold">Clinician override editor</h2>
+                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                  <div>
+                  <h2 className="font-display text-xl font-semibold">{t("clinicianOverrideEditor")}</h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Edit the structured plan directly. The saved JSON becomes the new auditable plan version for this case.
+                    {t("clinicianOverrideDescription")}
                   </p>
                 </div>
                 {!parsedPreview && (
                   <span className="rounded-full border border-destructive/30 bg-destructive/5 px-3 py-1 text-xs text-destructive">
-                    Invalid JSON
+                    {t("invalidJson")}
                   </span>
                 )}
               </div>
@@ -217,7 +219,7 @@ const PlanReview = () => {
             </div>
 
             <div className="rounded-3xl border border-border/70 bg-card p-7">
-              <h2 className="font-display text-xl font-semibold mb-4">Preview of current editable plan</h2>
+              <h2 className="font-display text-xl font-semibold mb-4">{t("previewEditablePlan")}</h2>
               <div className="space-y-5">
                 {plan.plan_segments.map((segment, index) => (
                   <div key={`${segment.modality}-${index}`}>
@@ -251,11 +253,11 @@ const PlanReview = () => {
 
           <aside className="lg:sticky lg:top-24 space-y-4 h-fit">
             <div className="rounded-3xl border border-border/70 bg-card p-6 shadow-soft">
-              <h3 className="font-display text-lg font-semibold mb-3">Clinician decision</h3>
+              <h3 className="font-display text-lg font-semibold mb-3">{t("clinicianDecision")}</h3>
               <Textarea
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                placeholder="Notes for the override / approval decision…"
+                placeholder={t("decisionNotesPlaceholder")}
                 rows={5}
                 className="rounded-xl"
                 maxLength={2000}
@@ -270,7 +272,7 @@ const PlanReview = () => {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      <CheckCircle2 className="mr-2 h-4 w-4" /> Approve current plan
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> {t("approveCurrentPlan")}
                     </>
                   )}
                 </Button>
@@ -280,7 +282,7 @@ const PlanReview = () => {
                   variant="outline"
                   className="rounded-full"
                 >
-                  Save as edited
+                  {t("saveEditedPlan")}
                 </Button>
                 <Button
                   onClick={() => decide("escalated")}
@@ -288,7 +290,7 @@ const PlanReview = () => {
                   variant="outline"
                   className="rounded-full border-warning/40 text-warning-foreground hover:bg-warning/10"
                 >
-                  <AlertTriangle className="mr-2 h-4 w-4" /> Escalate
+                  <AlertTriangle className="mr-2 h-4 w-4" /> {t("escalatePlan")}
                 </Button>
                 <Button
                   onClick={() => decide("rejected")}
@@ -296,17 +298,17 @@ const PlanReview = () => {
                   variant="outline"
                   className="rounded-full border-destructive/40 text-destructive hover:bg-destructive/10"
                 >
-                  <XCircle className="mr-2 h-4 w-4" /> Reject
+                  <XCircle className="mr-2 h-4 w-4" /> {t("rejectPlan")}
                 </Button>
               </div>
             </div>
 
             <div className="rounded-3xl border border-border/70 bg-card p-6">
               <h3 className="font-display text-lg font-semibold mb-3 flex items-center gap-2">
-                <History className="h-4 w-4" /> History
+                <History className="h-4 w-4" /> {t("reviewHistory")}
               </h3>
               {reviews.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No prior decisions.</p>
+                <p className="text-sm text-muted-foreground">{t("noReviewsYet")}</p>
               ) : (
                 <ul className="space-y-3">
                   {reviews.map((review) => (

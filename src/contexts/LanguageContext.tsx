@@ -1,7 +1,13 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import enStrings from "@/locales/en.json";
+import hiStrings from "@/locales/hi.json";
+import taStrings from "@/locales/ta.json";
+import teStrings from "@/locales/te.json";
+import bnStrings from "@/locales/bn.json";
+import mrStrings from "@/locales/mr.json";
+import knStrings from "@/locales/kn.json";
+import mlStrings from "@/locales/ml.json";
 import { getLanguageNative, LANGUAGES, type LanguageCode } from "@/lib/languages";
-import { translateTextBatch } from "@/lib/translationService";
 
 const LANGUAGE_STORAGE_KEY = "sanjeevani:selected-language";
 
@@ -18,7 +24,16 @@ interface LanguageContextValue {
 
 const defaultLanguage: LanguageCode = "en";
 const englishResources = enStrings as TranslationMap;
-const resourceEntries = Object.entries(englishResources);
+const resourceMap: Record<LanguageCode, TranslationMap> = {
+  en: enStrings as TranslationMap,
+  hi: hiStrings as TranslationMap,
+  ta: taStrings as TranslationMap,
+  te: teStrings as TranslationMap,
+  bn: bnStrings as TranslationMap,
+  mr: mrStrings as TranslationMap,
+  kn: knStrings as TranslationMap,
+  ml: mlStrings as TranslationMap,
+};
 
 const LanguageContext = createContext<LanguageContextValue>({
   language: defaultLanguage,
@@ -47,9 +62,17 @@ function getInitialLanguage(): LanguageCode {
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<LanguageCode>(getInitialLanguage);
-  const [resources, setResources] = useState<TranslationMap>(englishResources);
-  const [isTranslating, setIsTranslating] = useState(false);
-  const [translationWarning, setTranslationWarning] = useState<string | null>(null);
+
+  const resources = useMemo(
+    () => resourceMap[language] ?? englishResources,
+    [language],
+  );
+
+  const translationWarning = useMemo(() => {
+    if (language === "en") return null;
+    const missingKeys = Object.keys(englishResources).filter((key) => !resources[key]);
+    return missingKeys.length > 0 ? englishResources.translationWarning : null;
+  }, [language, resources]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -61,68 +84,29 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     document.body.dataset.language = language;
   }, [language]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadResources = async () => {
-      if (language === "en") {
-        setResources(englishResources);
-        setTranslationWarning(null);
-        setIsTranslating(false);
-        return;
-      }
-
-      setIsTranslating(true);
-      const result = await translateTextBatch({
-        strings: resourceEntries.map(([, value]) => value),
-        langCode: language,
-        cacheNamespace: "ui-static",
-        storage: "local",
-      });
-
-      if (cancelled) return;
-
-      const translatedResources = resourceEntries.reduce<TranslationMap>((accumulator, [key], index) => {
-        accumulator[key] = result.translations[index] || englishResources[key] || key;
-        return accumulator;
-      }, {});
-
-      setResources(translatedResources);
-      setTranslationWarning(result.fallback ? englishResources.translationWarning : null);
-      setIsTranslating(false);
-    };
-
-    void loadResources();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [language]);
-
-  const t = useMemo(
-    () => (key: string, values?: Record<string, string | number>) =>
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>) =>
       interpolate(resources[key] ?? englishResources[key] ?? key, values),
     [resources],
   );
 
-  const setLanguage = (nextLanguage: LanguageCode) => {
+  const setLanguage = useCallback((nextLanguage: LanguageCode) => {
     setLanguageState(nextLanguage);
-  };
+  }, []);
 
-  return (
-    <LanguageContext.Provider
-      value={{
-        language,
-        setLanguage,
-        t,
-        isTranslating,
-        translationWarning,
-        languageLabel: getLanguageNative(language),
-      }}
-    >
-      {children}
-    </LanguageContext.Provider>
+  const value = useMemo(
+    () => ({
+      language,
+      setLanguage,
+      t,
+      isTranslating: false,
+      translationWarning,
+      languageLabel: getLanguageNative(language),
+    }),
+    [language, setLanguage, t, translationWarning],
   );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
 export const useLanguage = () => useContext(LanguageContext);

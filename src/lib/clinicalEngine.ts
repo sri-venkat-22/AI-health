@@ -195,6 +195,38 @@ interface OfflinePlanEnrichment {
   modality_recommendations: Record<Modality, Recommendation[]>;
 }
 
+type SymptomCluster =
+  | "cardiorespiratory"
+  | "respiratory"
+  | "digestive"
+  | "pain-neurologic"
+  | "general";
+
+interface PresentationProfile {
+  cluster: SymptomCluster;
+  durationDays: number;
+  symptomNames: string[];
+  hasChestPain: boolean;
+  hasBreathlessness: boolean;
+  hasFever: boolean;
+  hasCough: boolean;
+  hasSoreThroat: boolean;
+  hasCold: boolean;
+  hasVomiting: boolean;
+  hasDiarrhea: boolean;
+  hasHeadache: boolean;
+  hasDizziness: boolean;
+  hasBodyAche: boolean;
+  hasFatigue: boolean;
+}
+
+interface AyurvedaProfile {
+  dominantDosha: string;
+  supportiveDetail: string;
+  routineDetail: string;
+  safetyCaution: string;
+}
+
 function lower(value: string) {
   return value.trim().toLowerCase();
 }
@@ -507,14 +539,16 @@ function buildHybridTriaging(intake: IntakeData, normalizedSymptoms: SymptomObje
 }
 
 function buildSuspectedConditions(normalizedSymptoms: SymptomObject[]): SuspectedCondition[] {
-  const names = normalizedSymptoms.map((item) => item.normalized);
+  const profile = buildPresentationProfile({ duration: "", symptoms: "" }, normalizedSymptoms);
+  const ayurvedaProfile = buildAyurvedaProfile(profile);
+  const names = profile.symptomNames;
   const conditions: SuspectedCondition[] = [];
 
   if (names.includes("fever") && (names.includes("cough") || names.includes("sore throat") || names.includes("cold"))) {
     conditions.push({
       name: "Upper respiratory tract infection pattern",
       icd10: "J06.9",
-      ayurveda_dosha: "Kapha-vata imbalance pattern",
+      ayurveda_dosha: ayurvedaProfile.dominantDosha,
       likelihood: "moderate",
     });
   }
@@ -523,8 +557,17 @@ function buildSuspectedConditions(normalizedSymptoms: SymptomObject[]): Suspecte
     conditions.push({
       name: "Acute gastrointestinal irritation pattern",
       icd10: "K52.9",
-      ayurveda_dosha: "Pitta aggravation pattern",
+      ayurveda_dosha: ayurvedaProfile.dominantDosha,
       likelihood: "moderate",
+    });
+  }
+
+  if (!names.includes("chest pain") && (names.includes("headache") || names.includes("dizziness") || names.includes("fatigue"))) {
+    conditions.push({
+      name: "Constitutional headache / fatigue pattern",
+      icd10: names.includes("headache") ? "R51.9" : "R53.83",
+      ayurveda_dosha: ayurvedaProfile.dominantDosha,
+      likelihood: "low",
     });
   }
 
@@ -546,18 +589,99 @@ function buildSuspectedConditions(normalizedSymptoms: SymptomObject[]): Suspecte
   return conditions;
 }
 
+function buildPresentationProfile(
+  intake: Pick<IntakeData, "duration" | "duration_days" | "symptoms">,
+  normalizedSymptoms: SymptomObject[],
+): PresentationProfile {
+  const symptomNames = normalizedSymptoms.map((item) => item.normalized);
+  const profile: PresentationProfile = {
+    cluster: "general",
+    durationDays: intake.duration_days ?? parseDurationToDays(intake.duration),
+    symptomNames,
+    hasChestPain: symptomNames.includes("chest pain"),
+    hasBreathlessness: symptomNames.includes("breathlessness"),
+    hasFever: symptomNames.includes("fever"),
+    hasCough: symptomNames.includes("cough"),
+    hasSoreThroat: symptomNames.includes("sore throat"),
+    hasCold: symptomNames.includes("cold"),
+    hasVomiting: symptomNames.includes("vomiting"),
+    hasDiarrhea: symptomNames.includes("diarrhea"),
+    hasHeadache: symptomNames.includes("headache"),
+    hasDizziness: symptomNames.includes("dizziness"),
+    hasBodyAche: symptomNames.includes("body ache"),
+    hasFatigue: symptomNames.includes("fatigue"),
+  };
+
+  if (profile.hasChestPain || profile.hasBreathlessness) {
+    profile.cluster = "cardiorespiratory";
+  } else if (profile.hasVomiting || profile.hasDiarrhea) {
+    profile.cluster = "digestive";
+  } else if (profile.hasFever || profile.hasCough || profile.hasSoreThroat || profile.hasCold) {
+    profile.cluster = "respiratory";
+  } else if (profile.hasHeadache || profile.hasDizziness || profile.hasBodyAche || profile.hasFatigue) {
+    profile.cluster = "pain-neurologic";
+  }
+
+  return profile;
+}
+
+function buildAyurvedaProfile(profile: PresentationProfile): AyurvedaProfile {
+  if (profile.cluster === "digestive") {
+    return {
+      dominantDosha: "Pitta-vata aggravation pattern",
+      supportiveDetail:
+        "Use clinician-reviewed pitta-vata support such as light warm meals, rice gruel, coriander-cumin-fennel style digestive soothing, and steady oral fluids while avoiding very spicy, oily, or reheated foods.",
+      routineDetail:
+        "Prefer smaller meals, gentle hydration, and early rest until appetite and bowel pattern stabilize.",
+      safetyCaution:
+        "Avoid strong heating herbs, heavy oils, and multi-herb combinations when dehydration, pregnancy, or medicine interactions are possible.",
+    };
+  }
+
+  if (profile.cluster === "respiratory") {
+    return {
+      dominantDosha: "Kapha-vata imbalance pattern",
+      supportiveDetail:
+        "Use clinician-reviewed kapha-vata support such as warm water, light soups, saline steam if tolerated, and gentle throat-soothing measures instead of heavy, cold, or mucus-forming foods.",
+      routineDetail:
+        "Favor warm meals, lighter dairy intake, voice rest, and a regular sleep schedule while congestion and throat irritation settle.",
+      safetyCaution:
+        "Avoid stacking warming herbs when hypertension, anticoagulants, pregnancy, or persistent fever need medical review.",
+    };
+  }
+
+  if (profile.cluster === "pain-neurologic") {
+    return {
+      dominantDosha: "Vata-pitta aggravation pattern",
+      supportiveDetail:
+        "Use clinician-reviewed vata-pitta support such as regular meals, gentle hydration, sleep restoration, and calming routines rather than prolonged fasting or overstimulation.",
+      routineDetail:
+        "Reduce screen strain, keep mealtimes regular, and consider gentle relaxation or breathing practices once acute causes are excluded.",
+      safetyCaution:
+        "Do not rely on traditional support alone when headache is new, severe, recurrent, or associated with dizziness, vomiting, or blood-pressure concerns.",
+    };
+  }
+
+  return {
+    dominantDosha: "Vata-kapha support pattern",
+    supportiveDetail:
+      "Use clinician-reviewed vata-kapha supportive care with warm fluids, gentle meals, structured rest, and symptom tracking.",
+    routineDetail:
+      "Keep hydration, sleep, and mealtimes steady while monitoring for escalation.",
+    safetyCaution:
+      "Adjunct traditional care should remain secondary to clinician review whenever symptoms intensify or medicines change.",
+  };
+}
+
 function chooseSelectedModalities(
   riskLevel: RiskLevel,
-  preferences: string[],
   normalizedSymptoms: SymptomObject[],
+  intake: IntakeData,
 ) {
   if (riskLevel === "emergent") return ["Allopathy"] as Modality[];
 
-  const selected: Modality[] = [riskLevel === "self-care" ? "Home Remedies" : "Allopathy"];
-  const preferenceOrder = preferences.map((preference) => lower(preference));
-  const symptomNames = normalizedSymptoms.map((item) => item.normalized);
-  const respiratory = symptomNames.some((name) => ["cough", "sore throat", "cold", "fever"].includes(name));
-  const digestive = symptomNames.some((name) => ["vomiting", "diarrhea"].includes(name));
+  const profile = buildPresentationProfile(intake, normalizedSymptoms);
+  const selected: Modality[] = ["Allopathy"];
 
   const addIfPossible = (modality: Modality) => {
     if (!selected.includes(modality) && selected.length < 2) {
@@ -565,11 +689,17 @@ function chooseSelectedModalities(
     }
   };
 
-  if (preferenceOrder.includes("ayurveda")) addIfPossible("Ayurveda");
-  if (preferenceOrder.includes("homeopathy") && riskLevel !== "urgent") addIfPossible("Homeopathy");
-  if (preferenceOrder.includes("home") || preferenceOrder.includes("home remedies")) addIfPossible("Home Remedies");
-  if (selected.length < 2 && digestive) addIfPossible("Ayurveda");
-  if (selected.length < 2 && respiratory) addIfPossible("Home Remedies");
+  if (profile.cluster === "digestive" && riskLevel !== "urgent") {
+    addIfPossible("Ayurveda");
+  } else if (profile.cluster === "respiratory") {
+    addIfPossible("Home Remedies");
+  } else if (profile.cluster === "pain-neurologic" && profile.durationDays >= 5) {
+    addIfPossible("Homeopathy");
+  } else if (riskLevel === "routine") {
+    addIfPossible("Ayurveda");
+  } else if (riskLevel === "self-care") {
+    addIfPossible("Home Remedies");
+  }
 
   return selected;
 }
@@ -579,7 +709,8 @@ function determineClinicalRoute(
   normalizedSymptoms: SymptomObject[],
   intake: IntakeData,
 ): { route: CareRoute; specialist?: string; reason: string } {
-  const symptoms = normalizedSymptoms.map((item) => item.normalized);
+  const profile = buildPresentationProfile(intake, normalizedSymptoms);
+  const symptoms = profile.symptomNames;
   const comorbidities = lower(intake.comorbidities || "");
 
   if (riskLevel === "emergent") {
@@ -592,7 +723,7 @@ function determineClinicalRoute(
     };
   }
 
-  if (symptoms.includes("chest pain") || symptoms.includes("breathlessness")) {
+  if (profile.cluster === "cardiorespiratory") {
     return {
       route: "specialist",
       specialist: "Internal medicine or pulmonology",
@@ -608,19 +739,84 @@ function determineClinicalRoute(
     };
   }
 
+  if (profile.cluster === "digestive" && (riskLevel === "urgent" || profile.durationDays >= 5)) {
+    return {
+      route: "specialist",
+      specialist: "General medicine or gastroenterology",
+      reason: "Digestive symptoms with persistence or higher-risk features need dehydration and medication-safety review.",
+    };
+  }
+
+  if (profile.cluster === "pain-neurologic" && (profile.durationDays >= 7 || profile.hasDizziness)) {
+    return {
+      route: "specialist",
+      specialist: "General medicine or neurology",
+      reason: "Persistent headache, dizziness, or fatigue patterns need clinician-led review to exclude secondary causes.",
+    };
+  }
+
   return {
-    route: riskLevel === "urgent" ? "general-practitioner" : "general-practitioner",
+    route: "general-practitioner",
     reason:
       riskLevel === "urgent"
-        ? "Urgent but non-emergency cases should be reviewed by a clinician or GP within 24 hours."
-        : "Routine and self-care cases can begin with structured GP guidance and escalation rules.",
+        ? profile.cluster === "digestive"
+          ? "Urgent digestive symptoms should be reviewed within 24 hours to assess hydration, triggers, and medicine safety."
+          : profile.cluster === "respiratory"
+            ? "Urgent respiratory symptoms should be reviewed within 24 hours to assess fever trend, breathing status, and escalation triggers."
+            : "Urgent but non-emergency cases should be reviewed by a clinician or GP within 24 hours."
+        : profile.cluster === "respiratory"
+          ? "Mild respiratory symptom clusters can begin with GP-led evaluation plus supportive care and red-flag monitoring."
+          : profile.cluster === "digestive"
+            ? "Digestive complaints can begin with GP-led evaluation focused on hydration, bowel pattern, and food or medicine triggers."
+            : profile.cluster === "pain-neurologic"
+              ? "Headache or fatigue patterns can begin with GP-led assessment of triggers, sleep, hydration, and blood-pressure review."
+              : "Routine and self-care cases can begin with structured GP guidance and escalation rules.",
   };
 }
 
 function buildCarePath(
   routeDecision: { route: CareRoute; specialist?: string; reason: string },
   selectedModalities: Modality[],
+  riskLevel: RiskLevel,
+  intake: IntakeData,
+  normalizedSymptoms: SymptomObject[],
 ): CarePathStep[] {
+  const profile = buildPresentationProfile(intake, normalizedSymptoms);
+  const ayurvedaProfile = buildAyurvedaProfile(profile);
+
+  const buildSelectedReason = (modality: Modality) => {
+    if (modality === "Allopathy") {
+      if (profile.cluster === "digestive") {
+        return "Lead with clinician-guided digestive assessment to review hydration, stool or vomiting frequency, and medication-safe symptom relief.";
+      }
+      if (profile.cluster === "respiratory") {
+        return "Lead with GP or clinician respiratory review to confirm the infection pattern, check fever trend, and screen for worsening breathing symptoms.";
+      }
+      if (profile.cluster === "pain-neurologic") {
+        return "Lead with clinician assessment of headache, dizziness, fatigue, hydration, and blood-pressure triggers before adding adjunct therapies.";
+      }
+      return routeDecision.reason;
+    }
+
+    if (modality === "Ayurveda") {
+      return `Optional dosha-aligned support for ${ayurvedaProfile.dominantDosha.toLowerCase()} after medication review and contraindication screening.`;
+    }
+
+    if (modality === "Homeopathy") {
+      return "Optional clinician-reviewed symptom-matching remedy path for persistent mild symptoms after the lead medical plan is established.";
+    }
+
+    if (profile.cluster === "digestive") {
+      return "Use simple household support such as oral fluids, bland meals, and rest while monitoring hydration and escalation triggers.";
+    }
+
+    if (profile.cluster === "respiratory") {
+      return "Use simple household support such as warm fluids, saline gargles, steam if tolerated, and rest while monitoring for red flags.";
+    }
+
+    return "Use simple household support such as hydration, rest, and symptom logging while watching for escalation.";
+  };
+
   return MODALITIES.map((modality, index) => {
     const selected = selectedModalities.includes(modality);
     const priority: PlanPriority = selected
@@ -636,7 +832,7 @@ function buildCarePath(
       route: selected ? routeDecision.route : "general-practitioner",
       specialist: selected && routeDecision.route !== "general-practitioner" ? routeDecision.specialist : undefined,
       reason: selected
-        ? routeDecision.reason
+        ? buildSelectedReason(modality)
         : "Displayed as an optional treatment pathway for clinician comparison, not as part of the default active care path.",
     };
   });
@@ -665,10 +861,14 @@ function buildRecommendationsForModality(
   step: CarePathStep,
   normalizedSymptoms: SymptomObject[],
   riskLevel: RiskLevel,
+  intake: IntakeData,
 ): Recommendation[] {
-  const symptoms = normalizedSymptoms.map((item) => item.normalized);
-  const respiratory = symptoms.some((item) => ["cough", "sore throat", "cold", "fever"].includes(item));
-  const digestive = symptoms.some((item) => ["vomiting", "diarrhea"].includes(item));
+  const profile = buildPresentationProfile(intake, normalizedSymptoms);
+  const ayurvedaProfile = buildAyurvedaProfile(profile);
+  const symptoms = profile.symptomNames;
+  const respiratory = profile.cluster === "respiratory";
+  const digestive = profile.cluster === "digestive";
+  const painNeurologic = profile.cluster === "pain-neurologic";
 
   if (modality === "Allopathy") {
     const items = [
@@ -691,6 +891,8 @@ function buildRecommendationsForModality(
           ? "Use oral rehydration, light meals, and clinician-approved symptom relief while monitoring for worsening dehydration."
           : respiratory
           ? "Use supportive symptom treatment such as hydration, rest, and clinician-approved fever or pain relief as needed."
+          : painNeurologic
+          ? "Use clinician-approved relief while reviewing hydration, sleep, blood pressure, and trigger control."
           : "Use guideline-based supportive therapy that matches the final clinician diagnosis.",
         "B",
         respiratory || digestive
@@ -729,17 +931,22 @@ function buildRecommendationsForModality(
   if (modality === "Ayurveda") {
     return [
       createRecommendation(
-        "Dosha-oriented support",
-        digestive
-          ? "Use gentle digestive support such as light warm foods and clinician-approved formulations rather than heating herb combinations."
-          : "Use gentle supportive measures such as warm fluids, rest, and clinician-reviewed dosha-aligned formulations.",
+        `${ayurvedaProfile.dominantDosha} support`,
+        ayurvedaProfile.supportiveDetail,
         "T",
         digestive ? "AYUSH digestive support guidance" : "AYUSH supportive respiratory care guidance",
         "traditional",
         {
           when_to_use: step.selected ? "Optional adjunct in the active care path." : "Optional pathway only after clinician review.",
-          safety_note: "Avoid combining multiple herbal formulations without medication review.",
+          safety_note: ayurvedaProfile.safetyCaution,
         },
+      ),
+      createRecommendation(
+        "Ayurvedic routine guidance",
+        ayurvedaProfile.routineDetail,
+        "T",
+        digestive ? "AYUSH digestive support guidance" : "AYUSH supportive respiratory care guidance",
+        "lifestyle",
       ),
       createRecommendation(
         "Complementary-only position",
@@ -811,6 +1018,7 @@ function buildBasePlanSegments(
   carePathSteps: CarePathStep[],
   normalizedSymptoms: SymptomObject[],
   riskLevel: RiskLevel,
+  intake: IntakeData,
 ) {
   return carePathSteps.map<PlanSegment>((step) => ({
     modality: step.modality,
@@ -821,6 +1029,7 @@ function buildBasePlanSegments(
       step,
       normalizedSymptoms,
       riskLevel,
+      intake,
     ),
   }));
 }
@@ -839,7 +1048,6 @@ function evaluateSafety(
   ];
 
   const medications = parseList(intake.medications).map(lower);
-  const herbsAndPreferences = parseList(intake.preferences?.join(",")).map(lower);
   const comorbidities = parseList(intake.comorbidities).map(lower);
   const allergies = parseList(intake.allergies).map(lower);
 
@@ -899,10 +1107,6 @@ function evaluateSafety(
       resolution: "Use non-honey alternatives such as saline gargles, warm water, or other non-allergenic household support.",
     });
     safetyChecks.push("Allergy screen applied to home remedies.");
-  }
-
-  if (herbsAndPreferences.includes("homeopathy") && medications.length > 0) {
-    safetyChecks.push("Optional homeopathy path flagged for clinician-mediated medication reconciliation.");
   }
 
   return {
@@ -1180,8 +1384,7 @@ async function enrichPlanWithOfflineModel(input: {
     `PAST SURGERIES: ${input.intake.past_surgeries || "none"}`,
     `FAMILY HISTORY: ${input.intake.family_history || "none"}`,
     `LIFESTYLE: smoking ${input.intake.smoking_status || "unknown"}, alcohol ${input.intake.alcohol_use || "unknown"}, sleep ${input.intake.sleep_quality || "unknown"}, appetite ${input.intake.appetite_status || "unknown"}`,
-    `RECENT TRAVEL / EXPOSURE: ${input.intake.recent_travel || "none"} / ${input.intake.recent_exposure || "none"}`,
-    `PREFERENCES: ${(input.intake.preferences || []).join(", ") || "none"}`,
+    `RECENT EXPOSURE: ${input.intake.recent_exposure || "none"}`,
     `BASE RISK: ${input.basePlan.risk_level}`,
     `BASE ROUTE: ${input.basePlan.clinical_route}${input.basePlan.specialist_referral ? ` (${input.basePlan.specialist_referral})` : ""}`,
     `ACTIVE CARE PATH: ${input.basePlan.care_path_steps.filter((step) => step.selected).map((step) => `${step.modality} (${step.priority})`).join(", ")}`,
@@ -1191,9 +1394,10 @@ async function enrichPlanWithOfflineModel(input: {
     "TASK:",
     "1. Suggest conservative route refinement (GP, specialist, or emergency).",
     "2. Expand treatment options for all four modalities so the UI can show every available treatment path, but keep complementary modalities explicitly optional.",
-    "3. Add only safe warnings or resolutions that do not contradict the existing deterministic warnings.",
-    "4. Write a patient-friendly English summary and top actions.",
-    "5. Keep recommendations modality-specific, non-prescriptive, and short.",
+    "3. For Ayurveda, include dosha-aligned support when the symptom pattern suggests one.",
+    "4. Add only safe warnings or resolutions that do not contradict the existing deterministic warnings.",
+    "5. Write a patient-friendly English summary and top actions.",
+    "6. Keep recommendations modality-specific, non-prescriptive, and short.",
   ].join("\n");
 
   const { output, status } = await generateStructuredOffline<OfflinePlanEnrichment>({
@@ -1229,7 +1433,7 @@ function mergePlanWithOfflineEnrichment(
           ...step,
           route: clinicalRoute,
           specialist: specialistReferral,
-          reason: enrichment.route.reason || step.reason,
+          reason: step.reason,
         }
       : step,
   );
@@ -1300,12 +1504,12 @@ export async function generateIntegrativePlan(
 
   const selectedModalities = chooseSelectedModalities(
     triage.riskLevel,
-    intake.preferences ?? [],
     normalizedSymptoms,
+    intake,
   );
   const routeDecision = determineClinicalRoute(triage.riskLevel, normalizedSymptoms, intake);
-  const carePathSteps = buildCarePath(routeDecision, selectedModalities);
-  const planSegments = buildBasePlanSegments(carePathSteps, normalizedSymptoms, triage.riskLevel);
+  const carePathSteps = buildCarePath(routeDecision, selectedModalities, triage.riskLevel, intake, normalizedSymptoms);
+  const planSegments = buildBasePlanSegments(carePathSteps, normalizedSymptoms, triage.riskLevel, intake);
   const safety = evaluateSafety(intake, carePathSteps, planSegments);
   const evidenceTrace = retrieveEvidence({
     normalizedSymptoms,

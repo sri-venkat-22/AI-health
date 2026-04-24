@@ -4,12 +4,41 @@ export const DEFAULT_OFFLINE_MODEL_SETTINGS: OfflineModelSettings = {
   enabled: true,
   baseUrl: "http://127.0.0.1:11434",
   model: "phi3:latest",
-  temperature: 0.2,
+  temperature: 0.1,
   timeoutMs: 45000,
 };
 
+const PREFERRED_MODEL_ORDER = [
+  "phi3:latest",
+  "qwen3:8b",
+  "qwen3:latest",
+] as const;
+
 function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function normalizeBaseUrl(baseUrl: string) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "") || DEFAULT_OFFLINE_MODEL_SETTINGS.baseUrl;
+  return trimmed.replace("http://localhost:", "http://127.0.0.1:");
+}
+
+function getCandidateBaseUrls(baseUrl: string) {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const candidates = [normalized];
+  if (normalized.includes("127.0.0.1")) {
+    candidates.push(normalized.replace("127.0.0.1", "localhost"));
+  } else if (normalized.includes("localhost")) {
+    candidates.push(normalized.replace("localhost", "127.0.0.1"));
+  }
+  return Array.from(new Set(candidates));
+}
+
+function selectBestInstalledModel(requestedModel: string, installedModels: string[]) {
+  if (installedModels.includes(requestedModel)) return requestedModel;
+  const preferred = PREFERRED_MODEL_ORDER.find((model) => installedModels.includes(model));
+  if (preferred) return preferred;
+  return installedModels[0] || requestedModel;
 }
 
 function withTimeout(timeoutMs: number) {
@@ -50,44 +79,67 @@ export async function getOfflineModelStatus(
     };
   }
 
-  const request = withTimeout(settings.timeoutMs);
-  try {
-    const response = await fetch(joinUrl(settings.baseUrl, "/api/tags"), {
-      method: "GET",
-      signal: request.signal,
-    });
+  let lastError: string | null = null;
 
-    if (!response.ok) {
-      throw new Error(`Ollama responded with ${response.status}.`);
+  for (const baseUrl of getCandidateBaseUrls(settings.baseUrl)) {
+    const request = withTimeout(settings.timeoutMs);
+    try {
+      const response = await fetch(joinUrl(baseUrl, "/api/tags"), {
+        method: "GET",
+        signal: request.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama responded with ${response.status}.`);
+      }
+
+      const payload = (await response.json()) as { models?: Array<{ name: string }> };
+      const installedModels = payload.models?.map((model) => model.name) ?? [];
+      const selectedModel = selectBestInstalledModel(settings.model, installedModels);
+
+      return {
+        provider: "ollama",
+        enabled: true,
+        available: installedModels.includes(selectedModel),
+        baseUrl,
+        model: selectedModel,
+        installedModels,
+        lastError: installedModels.includes(selectedModel)
+          ? null
+          : `No supported Ollama model is installed. Expected one of: ${PREFERRED_MODEL_ORDER.join(", ")}.`,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Unable to reach the local Ollama API.";
+    } finally {
+      request.clear();
     }
-
-    const payload = (await response.json()) as { models?: Array<{ name: string }> };
-    const installedModels = payload.models?.map((model) => model.name) ?? [];
-
-    return {
-      provider: "ollama",
-      enabled: true,
-      available: installedModels.includes(settings.model),
-      baseUrl: settings.baseUrl,
-      model: settings.model,
-      installedModels,
-      lastError: installedModels.includes(settings.model)
-        ? null
-        : `Configured model "${settings.model}" is not installed.`,
-    };
-  } catch (error) {
-    return {
-      provider: "ollama",
-      enabled: true,
-      available: false,
-      baseUrl: settings.baseUrl,
-      model: settings.model,
-      installedModels: [],
-      lastError: error instanceof Error ? error.message : "Unable to reach the local Ollama API.",
-    };
-  } finally {
-    request.clear();
   }
+
+  return {
+    provider: "ollama",
+    enabled: true,
+    available: false,
+    baseUrl: normalizeBaseUrl(settings.baseUrl),
+    model: settings.model,
+    installedModels: [],
+    lastError,
+  };
+}
+
+export async function resolveOfflineModelSettings(
+  settings: OfflineModelSettings = DEFAULT_OFFLINE_MODEL_SETTINGS,
+): Promise<{ settings: OfflineModelSettings; status: OfflineModelStatus }> {
+  const status = await getOfflineModelStatus(settings);
+  const resolvedSettings: OfflineModelSettings = {
+    ...settings,
+    baseUrl: status.baseUrl,
+    model: status.model,
+  };
+
+  return {
+    settings: resolvedSettings,
+    status,
+  };
 }
 
 export async function generateStructuredOffline<T>(input: {
@@ -96,26 +148,26 @@ export async function generateStructuredOffline<T>(input: {
   userPrompt: string;
   schema: Record<string, unknown>;
 }): Promise<{ output: T; status: OfflineModelStatus }> {
-  const status = await getOfflineModelStatus(input.settings);
+  const { settings, status } = await resolveOfflineModelSettings(input.settings);
   if (!status.available) {
     throw new Error(status.lastError || "Offline model is unavailable.");
   }
 
-  const request = withTimeout(input.settings.timeoutMs);
+  const request = withTimeout(settings.timeoutMs);
   try {
-    const response = await fetch(joinUrl(input.settings.baseUrl, "/api/generate"), {
+    const response = await fetch(joinUrl(settings.baseUrl, "/api/generate"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: input.settings.model,
+        model: settings.model,
         system: input.systemPrompt,
         prompt: input.userPrompt,
         format: input.schema,
         stream: false,
         options: {
-          temperature: input.settings.temperature,
+          temperature: settings.temperature,
         },
       }),
       signal: request.signal,

@@ -14,7 +14,6 @@ describe("clinical orchestration engine", () => {
         duration: "1 hour",
         age: 42,
         sex: "male",
-        preferences: ["allopathy", "ayurveda", "homeopathy"],
         comorbidities: "hypertension",
       },
       "en",
@@ -36,7 +35,6 @@ describe("clinical orchestration engine", () => {
         duration: "2 days",
         age: 29,
         sex: "female",
-        preferences: ["allopathy", "ayurveda", "homeopathy", "home"],
       },
       "hi",
     );
@@ -50,6 +48,46 @@ describe("clinical orchestration engine", () => {
     expect(plan.back_translation_confidence).toBeGreaterThanOrEqual(0.9);
     expect(plan.provenance.length).toBeGreaterThan(0);
     expect(plan.explainability.triage_model.ensemble_probability).toBeGreaterThan(0);
+  });
+
+  it("builds different active care paths for respiratory versus digestive intake and adds dosha guidance", async () => {
+    const respiratory = await generateIntegrativePlan(
+      buildIntakePayload(
+        {
+          symptoms: "Cough, cold and sore throat for 2 days",
+          duration: "2 days",
+          age: 24,
+        },
+        "en",
+      ),
+      { useOfflineModel: false },
+    );
+
+    const digestive = await generateIntegrativePlan(
+      buildIntakePayload(
+        {
+          symptoms: "Loose motions and stomach upset for 1 day",
+          duration: "1 day",
+          age: 24,
+        },
+        "en",
+      ),
+      { useOfflineModel: false },
+    );
+
+    expect(respiratory.care_path_steps.filter((step) => step.selected).map((step) => step.modality)).toEqual([
+      "Allopathy",
+      "Home Remedies",
+    ]);
+    expect(digestive.care_path_steps.filter((step) => step.selected).map((step) => step.modality)).toEqual([
+      "Allopathy",
+      "Ayurveda",
+    ]);
+    expect(
+      digestive.plan_segments
+        .find((segment) => segment.modality === "Ayurveda")
+        ?.recommendations[0]?.title,
+    ).toMatch(/Pitta|Vata/i);
   });
 
   it("flags ssri plus st johns wort as a severe interaction", async () => {

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { usePatient } from "@/contexts/PatientContext";
 import { LANGUAGES } from "@/lib/languages";
 import type { PatientHistoryRecord } from "@/lib/types";
@@ -25,6 +26,7 @@ const signUpSchema = signInSchema.extend({
 
 const PatientPortal = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const { patient, history, loading, signIn, signUp, signOut, refreshHistory } = usePatient();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
@@ -46,22 +48,22 @@ const PatientPortal = () => {
       if (mode === "signin") {
         const parsed = signInSchema.safeParse(form);
         if (!parsed.success) {
-          toast.error(parsed.error.issues[0]?.message || "Enter a valid email and password.");
+          toast.error(t("enterValidEmailPassword"));
           return;
         }
         await signIn(parsed.data);
-        toast.success("Patient signed in.");
+        toast.success(t("patientSignedIn"));
       } else {
         const parsed = signUpSchema.safeParse(form);
         if (!parsed.success) {
-          toast.error(parsed.error.issues[0]?.message || "Please complete the patient form.");
+          toast.error(t("completePatientForm"));
           return;
         }
         await signUp(parsed.data);
-        toast.success("Patient account created locally.");
+        toast.success(t("patientAccountCreated"));
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Patient authentication failed.");
+      toast.error(error instanceof Error ? error.message : t("patientAuthFailed"));
     } finally {
       setBusy(false);
     }
@@ -81,7 +83,7 @@ const PatientPortal = () => {
       <main className="container py-10 max-w-5xl">
         <Button variant="ghost" asChild className="mb-6 rounded-full -ml-3">
           <Link to="/">
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Home
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> {t("home")}
           </Link>
         </Button>
 
@@ -92,19 +94,19 @@ const PatientPortal = () => {
                 <UserRound className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-primary font-semibold">Patient portal</div>
+                <div className="text-xs uppercase tracking-[0.2em] text-primary font-semibold">{t("patientPortalTitle")}</div>
                 <h1 className="font-display text-2xl font-semibold">
-                  {patient ? patient.full_name : mode === "signin" ? "Patient sign in" : "Create local patient account"}
+                  {patient ? patient.full_name : mode === "signin" ? t("patientSignInTitle") : t("createLocalPatientAccount")}
                 </h1>
               </div>
             </div>
 
             <div className="rounded-2xl border border-primary/20 bg-primary-soft/50 px-4 py-3 text-sm text-muted-foreground mb-5">
-              Uses a real offline local database in your browser. Demo patient login: patient@sanjeevani.demo / demo123.
+              {t("patientPortalDemo")}
             </div>
 
             {loading ? (
-              <div className="text-sm text-muted-foreground">Loading local patient database…</div>
+              <div className="text-sm text-muted-foreground">{t("loadingLocalPatientDb")}</div>
             ) : patient ? (
               <div className="space-y-4">
                 <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
@@ -113,15 +115,15 @@ const PatientPortal = () => {
                   {patient.phone && <div className="text-sm text-muted-foreground">{patient.phone}</div>}
                   {patient.preferred_language && (
                     <div className="text-sm text-muted-foreground">
-                      Preferred language: {LANGUAGES.find((language) => language.code === patient.preferred_language)?.native || patient.preferred_language}
+                      {t("preferredLanguage")}: {LANGUAGES.find((language) => language.code === patient.preferred_language)?.native || patient.preferred_language}
                     </div>
                   )}
                 </div>
                 <Button asChild className="w-full rounded-full bg-gradient-primary text-primary-foreground shadow-glow">
-                  <Link to="/intake">Start new intake</Link>
+                  <Link to="/intake">{t("startNewIntake")}</Link>
                 </Button>
                 <Button variant="outline" className="w-full rounded-full" onClick={() => void signOut()}>
-                  <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  <LogOut className="mr-2 h-4 w-4" /> {t("signOut")}
                 </Button>
               </div>
             ) : (
@@ -130,7 +132,7 @@ const PatientPortal = () => {
                   {mode === "signup" && (
                     <>
                       <div>
-                        <Label htmlFor="patient-full-name">Full name</Label>
+                        <Label htmlFor="patient-full-name">{t("fullName")}</Label>
                         <Input
                           id="patient-full-name"
                           value={form.full_name}
@@ -139,7 +141,7 @@ const PatientPortal = () => {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="patient-phone">Phone</Label>
+                        <Label htmlFor="patient-phone">{t("phone")}</Label>
                         <Input
                           id="patient-phone"
                           value={form.phone}
@@ -148,7 +150,7 @@ const PatientPortal = () => {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="patient-language">Preferred language</Label>
+                        <Label htmlFor="patient-language">{t("preferredLanguage")}</Label>
                         <select
                           id="patient-language"
                           value={form.preferred_language}
@@ -166,7 +168,7 @@ const PatientPortal = () => {
                   )}
 
                   <div>
-                    <Label htmlFor="patient-email">Email</Label>
+                    <Label htmlFor="patient-email">{t("email")}</Label>
                     <Input
                       id="patient-email"
                       type="email"
@@ -177,7 +179,7 @@ const PatientPortal = () => {
                   </div>
 
                   <div>
-                    <Label htmlFor="patient-password">Password</Label>
+                    <Label htmlFor="patient-password">{t("password")}</Label>
                     <Input
                       id="patient-password"
                       type="password"
@@ -188,23 +190,23 @@ const PatientPortal = () => {
                   </div>
 
                   <Button type="submit" disabled={busy} className="w-full rounded-full bg-gradient-primary text-primary-foreground shadow-glow">
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? "Sign in" : "Create local account"}
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? t("signInCta") : t("createLocalAccountCta")}
                   </Button>
                 </form>
 
                 <div className="mt-5 text-center text-sm text-muted-foreground">
                   {mode === "signin" ? (
                     <>
-                      New patient?{" "}
+                      {t("newPatientQuestion")}{" "}
                       <button onClick={() => setMode("signup")} className="text-primary font-medium hover:underline">
-                        Create account
+                        {t("createAccountCta")}
                       </button>
                     </>
                   ) : (
                     <>
-                      Already have an account?{" "}
+                      {t("alreadyHaveAccount")}{" "}
                       <button onClick={() => setMode("signin")} className="text-primary font-medium hover:underline">
-                        Sign in
+                        {t("signInCta")}
                       </button>
                     </>
                   )}
@@ -216,30 +218,30 @@ const PatientPortal = () => {
           <section className="rounded-3xl border border-border/70 bg-card p-7 shadow-soft">
             <div className="flex items-center gap-2 mb-4">
               <History className="h-5 w-5 text-primary" />
-              <h2 className="font-display text-2xl font-semibold">Previous patient data</h2>
+              <h2 className="font-display text-2xl font-semibold">{t("patientPortalPreviousData")}</h2>
               {patient && history.length > 0 && (
                 <span className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-                  {history.length} record{history.length === 1 ? "" : "s"}
+                  {history.length === 1 ? t("recordCount", { count: history.length }) : t("recordCountPlural", { count: history.length })}
                 </span>
               )}
             </div>
 
             {!patient ? (
               <p className="text-muted-foreground">
-                Sign in with a local patient account to view previous intakes and reuse earlier data during the next consultation.
+                {t("signInToViewHistory")}
               </p>
             ) : history.length === 0 ? (
               <div className="space-y-3">
-                <p className="text-muted-foreground">No previous offline patient records yet.</p>
+                <p className="text-muted-foreground">{t("noPreviousRecords")}</p>
                 <Button variant="outline" className="rounded-full" onClick={() => void refreshHistory()}>
-                  <RefreshCw className="mr-2 h-4 w-4" /> Refresh records
+                  <RefreshCw className="mr-2 h-4 w-4" /> {t("refreshRecords")}
                 </Button>
               </div>
             ) : (
               <>
                 <div className="mb-4 flex justify-end">
                   <Button variant="outline" size="sm" className="rounded-full" onClick={() => void refreshHistory()}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Refresh records
+                    <RefreshCw className="mr-2 h-4 w-4" /> {t("refreshRecords")}
                   </Button>
                 </div>
                 <ul className="space-y-3">
@@ -249,7 +251,7 @@ const PatientPortal = () => {
                       <div>
                         <div className="font-medium">{record.intake.symptoms}</div>
                         <div className="text-sm text-muted-foreground mt-1">
-                          {record.plan.care_path} · risk {(record.risk_level || record.plan.risk_level).replace(/-/g, " ")}
+                          {record.plan.care_path} · {t("risk")} {(record.risk_level || record.plan.risk_level).replace(/-/g, " ")}
                         </div>
                       </div>
                       <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
@@ -267,7 +269,7 @@ const PatientPortal = () => {
                         className="rounded-full"
                         onClick={() => openRecord(record)}
                       >
-                        Open result
+                        {t("openResult")}
                       </Button>
                     </div>
                   </li>

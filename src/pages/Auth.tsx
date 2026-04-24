@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -21,6 +22,7 @@ const signUpSchema = signInSchema.extend({
 });
 
 const Auth = () => {
+  const { t } = useLanguage();
   const { user, loading, authMode, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -38,13 +40,13 @@ const Auth = () => {
     try {
       if (mode === "signin") {
         const parsed = signInSchema.safeParse(form);
-        if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
+        if (!parsed.success) { toast.error(t("enterValidEmailPassword")); return; }
         await signIn({ email: parsed.data.email, password: parsed.data.password });
-        toast.success("Welcome back");
+        toast.success(t("welcomeBack"));
         navigate("/clinician/dashboard");
       } else {
         const parsed = signUpSchema.safeParse(form);
-        if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
+        if (!parsed.success) { toast.error(t("completeClinicianForm")); return; }
         await signUp({
           email: parsed.data.email,
           password: parsed.data.password,
@@ -54,8 +56,8 @@ const Auth = () => {
         });
         toast.success(
           authMode === "local"
-            ? "Local clinician account created and signed in."
-            : "Account created. You can sign in.",
+            ? t("localClinicianCreated")
+            : t("accountCreatedCanSignIn"),
         );
         if (authMode === "local") {
           navigate("/clinician/dashboard");
@@ -64,7 +66,7 @@ const Auth = () => {
         }
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Authentication failed");
+      toast.error(e instanceof Error ? e.message : t("authenticationFailed"));
     } finally {
       setBusy(false);
     }
@@ -80,58 +82,58 @@ const Auth = () => {
               <Stethoscope className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-primary font-semibold">Clinician portal</div>
-              <h1 className="font-display text-2xl font-semibold">{mode === "signin" ? "Sign in" : "Create account"}</h1>
+              <div className="text-xs uppercase tracking-[0.2em] text-primary font-semibold">{t("clinicianPortal")}</div>
+              <h1 className="font-display text-2xl font-semibold">{mode === "signin" ? t("signInCta") : t("createAccountCta")}</h1>
             </div>
           </div>
 
           <div className="mb-5 rounded-2xl border border-border/70 bg-gradient-soft px-4 py-3 text-sm text-muted-foreground">
             {authMode === "local"
-              ? "Running in local demo mode. You can create a clinician account here or use the seeded demo login: clinician@sanjeevani.demo / demo123."
-              : "Running with Supabase authentication for the clinician portal."}
+              ? t("runningLocalDemo")
+              : t("runningSupabase")}
           </div>
 
           <form onSubmit={submit} className="space-y-4">
             {mode === "signup" && (
               <>
                 <div>
-                  <Label htmlFor="full_name">Full name</Label>
+                  <Label htmlFor="full_name">{t("fullName")}</Label>
                   <Input id="full_name" value={form.full_name} onChange={(e) => update("full_name", e.target.value)} className="mt-1.5 rounded-xl" required />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="specialty">Specialty</Label>
+                    <Label htmlFor="specialty">{t("specialty")}</Label>
                     <Input id="specialty" value={form.specialty} onChange={(e) => update("specialty", e.target.value)} className="mt-1.5 rounded-xl" placeholder="GP, Ayurveda…" />
                   </div>
                   <div>
-                    <Label htmlFor="organization">Organization</Label>
+                    <Label htmlFor="organization">{t("organization")}</Label>
                     <Input id="organization" value={form.organization} onChange={(e) => update("organization", e.target.value)} className="mt-1.5 rounded-xl" />
                   </div>
                 </div>
               </>
             )}
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t("email")}</Label>
               <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} className="mt-1.5 rounded-xl" required autoComplete="email" />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("password")}</Label>
               <Input id="password" type="password" value={form.password} onChange={(e) => update("password", e.target.value)} className="mt-1.5 rounded-xl" required autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength={6} />
             </div>
             <Button type="submit" disabled={busy} className="w-full rounded-full bg-gradient-primary text-primary-foreground shadow-glow h-11">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? "Sign in" : "Create account"}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "signin" ? t("signInCta") : t("createAccountCta")}
             </Button>
           </form>
 
           <div className="mt-5 text-center text-sm text-muted-foreground">
             {mode === "signin" ? (
-              <>New here? <button onClick={() => setMode("signup")} className="text-primary font-medium hover:underline">Create a clinician account</button></>
+              <>{t("newHere")} <button onClick={() => setMode("signup")} className="text-primary font-medium hover:underline">{t("createClinicianAccount")}</button></>
             ) : (
-              <>Already registered? <button onClick={() => setMode("signin")} className="text-primary font-medium hover:underline">Sign in</button></>
+              <>{t("alreadyRegistered")} <button onClick={() => setMode("signin")} className="text-primary font-medium hover:underline">{t("signInCta")}</button></>
             )}
           </div>
           <div className="mt-6 text-center">
-            <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← Back to home</Link>
+            <Link to="/" className="text-xs text-muted-foreground hover:text-foreground">← {t("backToHome")}</Link>
           </div>
         </div>
       </main>

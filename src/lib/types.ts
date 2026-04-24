@@ -179,9 +179,7 @@ export interface IntakeData {
   alcohol_use?: string;
   sleep_quality?: string;
   appetite_status?: string;
-  recent_travel?: string;
   recent_exposure?: string;
-  preferences?: string[];
 }
 
 export interface Interaction {
@@ -234,9 +232,7 @@ export interface IntakeSessionRecord {
   alcohol_use?: string | null;
   sleep_quality?: string | null;
   appetite_status?: string | null;
-  recent_travel?: string | null;
   recent_exposure?: string | null;
-  preferences: string[];
   normalized_symptoms: SymptomObject[];
   created_at: string;
 }

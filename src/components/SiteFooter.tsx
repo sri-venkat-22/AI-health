@@ -1,30 +1,36 @@
-export const SiteFooter = () => (
-  <footer className="border-t border-border/60 mt-24 bg-gradient-soft">
-    <div className="container py-12 grid gap-8 md:grid-cols-3 text-sm">
-      <div>
-        <div className="font-display text-xl font-semibold mb-2">Sanjeevani</div>
-        <p className="text-muted-foreground leading-relaxed max-w-xs">
-          AI Integrative Multilingual Telehealth Orchestrator. Decision-support, not a substitute for medical judgement.
-        </p>
+import { useLanguage } from "@/contexts/LanguageContext";
+
+export const SiteFooter = () => {
+  const { t } = useLanguage();
+
+  return (
+    <footer className="border-t border-border/60 mt-24 bg-gradient-soft">
+      <div className="container py-12 grid gap-8 md:grid-cols-3 text-sm">
+        <div>
+          <div className="font-display text-xl font-semibold mb-2">{t("appName")}</div>
+          <p className="text-muted-foreground leading-relaxed max-w-xs">
+            {t("footerBrandDescription")}
+          </p>
+        </div>
+        <div>
+          <div className="font-semibold mb-3 text-foreground">{t("footerEvidenceTitle")}</div>
+          <ul className="space-y-1.5 text-muted-foreground">
+            <li>{t("footerEvidence1")}</li>
+            <li>{t("footerEvidence2")}</li>
+            <li>{t("footerEvidence3")}</li>
+            <li>{t("footerEvidence4")}</li>
+          </ul>
+        </div>
+        <div>
+          <div className="font-semibold mb-3 text-foreground">{t("footerSafetyTitle")}</div>
+          <p className="text-muted-foreground leading-relaxed">
+            {t("footerSafetyDescription")}
+          </p>
+        </div>
       </div>
-      <div>
-        <div className="font-semibold mb-3 text-foreground">Evidence sources</div>
-        <ul className="space-y-1.5 text-muted-foreground">
-          <li>WHO clinical guidelines</li>
-          <li>ICMR India treatment protocols</li>
-          <li>AYUSH classical texts &amp; pharmacopoeia</li>
-          <li>Peer-reviewed integrative research</li>
-        </ul>
+      <div className="border-t border-border/60 py-5 text-center text-xs text-muted-foreground">
+        {t("footerCopyright", { year: new Date().getFullYear() })}
       </div>
-      <div>
-        <div className="font-semibold mb-3 text-foreground">Safety</div>
-        <p className="text-muted-foreground leading-relaxed">
-          Every plan passes through cross-modality conflict checks and a human-in-the-loop clinician review before being acted upon.
-        </p>
-      </div>
-    </div>
-    <div className="border-t border-border/60 py-5 text-center text-xs text-muted-foreground">
-      © {new Date().getFullYear()} Sanjeevani Health · For research and clinical decision-support only.
-    </div>
-  </footer>
-);
+    </footer>
+  );
+};

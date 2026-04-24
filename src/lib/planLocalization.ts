@@ -267,7 +267,7 @@ export async function localizePlanForLanguage(
       ),
     }),
   );
-  const cacheKey = `sanjeevani:localized-plan:v4:${langCode}:${planSignature}`;
+  const cacheKey = `sanjeevani:localized-plan:v5:${langCode}:${planSignature}`;
 
   if (typeof window !== "undefined") {
     const cached = window.sessionStorage.getItem(cacheKey);
@@ -290,9 +290,11 @@ export async function localizePlanForLanguage(
   });
   const translatedStrings = translationResult.translations;
 
-  entries.forEach((entry, index) => {
-    entry.apply(translatedStrings[index] || entry.source);
-  });
+  if (!translationResult.fallback) {
+    entries.forEach((entry, index) => {
+      entry.apply(translatedStrings[index] || entry.source);
+    });
+  }
 
   localizedPlan.translation = {
     ...localizedPlan.translation,

@@ -19,8 +19,9 @@ import { Label } from "@/components/ui/label";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { OfflineModelPanel } from "@/components/OfflineModelPanel";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { usePatient } from "@/contexts/PatientContext";
-import { LANGUAGES, getLanguageName, type LanguageCode, t } from "@/lib/languages";
+import { LANGUAGES, getLanguageName, type LanguageCode } from "@/lib/languages";
 import { buildIntakePayload, generateIntegrativePlan } from "@/lib/clinicalEngine";
 import { createIntakeSessionRecord, saveGeneratedPlan } from "@/lib/localStore";
 import { getLatestPatientHistory, savePatientHistoryRecord } from "@/lib/offlinePatientDb";
@@ -28,68 +29,11 @@ import type { IntakeData, PatientHistoryRecord } from "@/lib/types";
 import { toast } from "sonner";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
-const PREF_OPTIONS = [
-  { value: "allopathy", label: "Allopathy" },
-  { value: "ayurveda", label: "Ayurveda" },
-  { value: "homeopathy", label: "Homeopathy" },
-  { value: "home remedies", label: "Home remedies" },
-];
-
-const SEX_OPTIONS = [
-  { value: "", label: "Select" },
-  { value: "female", label: "Female" },
-  { value: "male", label: "Male" },
-  { value: "other", label: "Other" },
-];
-
-const SEVERITY_OPTIONS = [
-  { value: "mild", label: "Mild" },
-  { value: "moderate", label: "Moderate" },
-  { value: "severe", label: "Severe" },
-];
-
-const PREGNANCY_OPTIONS = [
-  { value: "", label: "Not stated" },
-  { value: "not-applicable", label: "Not applicable" },
-  { value: "not-pregnant", label: "Not pregnant" },
-  { value: "pregnant", label: "Pregnant" },
-  { value: "postpartum", label: "Postpartum" },
-];
-
-const SMOKING_OPTIONS = [
-  { value: "", label: "Not stated" },
-  { value: "never", label: "Never" },
-  { value: "former", label: "Former" },
-  { value: "current", label: "Current" },
-];
-
-const ALCOHOL_OPTIONS = [
-  { value: "", label: "Not stated" },
-  { value: "none", label: "None" },
-  { value: "occasional", label: "Occasional" },
-  { value: "regular", label: "Regular" },
-];
-
-const SLEEP_OPTIONS = [
-  { value: "", label: "Not stated" },
-  { value: "poor", label: "Poor" },
-  { value: "fair", label: "Fair" },
-  { value: "good", label: "Good" },
-];
-
-const APPETITE_OPTIONS = [
-  { value: "", label: "Not stated" },
-  { value: "reduced", label: "Reduced" },
-  { value: "normal", label: "Normal" },
-  { value: "increased", label: "Increased" },
-];
-
 const EMPTY_DATA: IntakeData = {
   language: "English",
   language_code: "en",
   symptoms: "",
   duration: "",
-  preferences: ["allopathy"],
   symptom_severity: "moderate",
   smoking_status: "never",
   alcohol_use: "none",
@@ -108,10 +52,6 @@ function hydrateFormFromHistory(record: PatientHistoryRecord, languageCode: Lang
     ...record.intake,
     language: getLanguageName(languageCode),
     language_code: languageCode,
-    preferences:
-      record.intake.preferences && record.intake.preferences.length > 0
-        ? record.intake.preferences
-        : ["allopathy"],
   };
 }
 
@@ -129,34 +69,90 @@ function buildBlankIntakeData(
 
 const Intake = () => {
   const navigate = useNavigate();
+  const { language: lang, setLanguage, t } = useLanguage();
   const { patient, history, loading: patientLoading, refreshHistory } = usePatient();
   const [step, setStep] = useState(0);
-  const [lang, setLang] = useState<LanguageCode>("en");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<IntakeData>(EMPTY_DATA);
   const [latestHistory, setLatestHistory] = useState<PatientHistoryRecord | null>(null);
 
   const speech = useSpeechRecognition(lang);
 
+  const sexOptions = useMemo(
+    () => [
+      { value: "", label: t("selectOption") },
+      { value: "female", label: t("female") },
+      { value: "male", label: t("male") },
+      { value: "other", label: t("other") },
+    ],
+    [t],
+  );
+
+  const severityOptions = useMemo(
+    () => [
+      { value: "mild", label: t("mild") },
+      { value: "moderate", label: t("moderate") },
+      { value: "severe", label: t("severe") },
+    ],
+    [t],
+  );
+
+  const pregnancyOptions = useMemo(
+    () => [
+      { value: "", label: t("notStated") },
+      { value: "not-applicable", label: t("notApplicable") },
+      { value: "not-pregnant", label: t("notPregnant") },
+      { value: "pregnant", label: t("pregnant") },
+      { value: "postpartum", label: t("postpartum") },
+    ],
+    [t],
+  );
+
+  const smokingOptions = useMemo(
+    () => [
+      { value: "", label: t("notStated") },
+      { value: "never", label: t("never") },
+      { value: "former", label: t("former") },
+      { value: "current", label: t("current") },
+    ],
+    [t],
+  );
+
+  const alcoholOptions = useMemo(
+    () => [
+      { value: "", label: t("notStated") },
+      { value: "none", label: t("none") },
+      { value: "occasional", label: t("occasional") },
+      { value: "regular", label: t("regular") },
+    ],
+    [t],
+  );
+
+  const sleepOptions = useMemo(
+    () => [
+      { value: "", label: t("notStated") },
+      { value: "poor", label: t("poor") },
+      { value: "fair", label: t("fair") },
+      { value: "good", label: t("good") },
+    ],
+    [t],
+  );
+
+  const appetiteOptions = useMemo(
+    () => [
+      { value: "", label: t("notStated") },
+      { value: "reduced", label: t("reduced") },
+      { value: "normal", label: t("normal") },
+      { value: "increased", label: t("increased") },
+    ],
+    [t],
+  );
+
   const update = <K extends keyof IntakeData>(key: K, value: IntakeData[K]) =>
     setData((current) => ({ ...current, [key]: value }));
 
-  const togglePref = (value: string) =>
-    setData((current) => {
-      const next = new Set(current.preferences || []);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return {
-        ...current,
-        preferences: Array.from(next),
-      };
-    });
-
   const onLangChange = (code: LanguageCode) => {
-    setLang(code);
+    setLanguage(code);
     update("language_code", code);
     update("language", getLanguageName(code));
     if (speech.listening) speech.stop();
@@ -194,15 +190,15 @@ const Intake = () => {
 
   useEffect(() => {
     const preferredCode = (patient?.preferred_language as LanguageCode | undefined) || "en";
-    setLang(preferredCode);
+    setLanguage(preferredCode);
     setData(buildBlankIntakeData(preferredCode, patient));
     setStep(0);
-  }, [patient]);
+  }, [patient, setLanguage]);
 
   const reuseLatestHistory = () => {
     if (!latestHistory || !patient) return;
     const nextLanguage = (latestHistory.language_code || patient.preferred_language || "en") as LanguageCode;
-    setLang(nextLanguage);
+    setLanguage(nextLanguage);
     setData({
       ...hydrateFormFromHistory(latestHistory, nextLanguage),
       patient_id: patient.id,
@@ -210,20 +206,20 @@ const Intake = () => {
       email: patient.email,
       phone: patient.phone || latestHistory.intake.phone || "",
     });
-    toast.success("Previous patient data loaded into the intake form.");
+    toast.success(t("previousDataLoaded"));
   };
 
   const startBlankIntake = () => {
     const nextLanguage = (patient?.preferred_language as LanguageCode | undefined) || "en";
-    setLang(nextLanguage);
+    setLanguage(nextLanguage);
     setData(buildBlankIntakeData(nextLanguage, patient));
     setStep(0);
-    toast.success("Started a fresh blank intake form.");
+    toast.success(t("blankIntakeStarted"));
   };
 
   const toggleVoice = () => {
     if (!speech.supported) {
-      toast.error("Voice input isn't supported in this browser. Try Chrome or Edge.");
+      toast.error(t("voiceUnsupported"));
       return;
     }
     if (speech.listening) {
@@ -240,7 +236,7 @@ const Intake = () => {
 
   const submit = async () => {
     if (!data.symptoms.trim() || !data.duration.trim()) {
-      toast.error("Please describe your symptoms and how long you've had them.");
+      toast.error(t("symptomsDurationRequired"));
       return;
     }
 
@@ -254,8 +250,6 @@ const Intake = () => {
           email: data.email || patient?.email,
           phone: data.phone || patient?.phone,
           language: getLanguageName(lang),
-          preferences:
-            data.preferences && data.preferences.length > 0 ? data.preferences : ["allopathy"],
         },
         lang,
       );
@@ -281,7 +275,7 @@ const Intake = () => {
           await refreshHistory();
         } catch (historyError) {
           console.error(historyError);
-          toast.error("The care plan was created, but local patient history could not be saved.");
+          toast.error(t("historySaveFailed"));
         }
       }
 
@@ -292,7 +286,7 @@ const Intake = () => {
       navigate("/results");
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+      toast.error(error instanceof Error ? error.message : t("genericTryAgain"));
     } finally {
       setLoading(false);
     }
@@ -300,7 +294,7 @@ const Intake = () => {
 
   const steps = [
     {
-      title: t(lang, "yourLanguage"),
+      title: t("yourLanguage"),
       content: (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {LANGUAGES.map((language) => {
@@ -325,33 +319,33 @@ const Intake = () => {
       ),
     },
     {
-      title: "Patient profile",
+      title: t("stepPatientProfile"),
       content: (
         <div className="space-y-5">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="patient-name" className="text-base">Patient name</Label>
+              <Label htmlFor="patient-name" className="text-base">{t("patientName")}</Label>
               <Input
                 id="patient-name"
                 value={data.patient_name ?? ""}
                 onChange={(event) => update("patient_name", event.target.value)}
                 className="mt-2 rounded-xl"
-                placeholder="Full name"
+                placeholder={t("fullNamePlaceholder")}
               />
             </div>
             <div>
-              <Label htmlFor="patient-phone" className="text-base">Phone</Label>
+              <Label htmlFor="patient-phone" className="text-base">{t("phone")}</Label>
               <Input
                 id="patient-phone"
                 value={data.phone ?? ""}
                 onChange={(event) => update("phone", event.target.value)}
                 className="mt-2 rounded-xl"
-                placeholder="Mobile number"
+                placeholder={t("mobilePlaceholder")}
               />
             </div>
           </div>
           <div>
-            <Label htmlFor="patient-email" className="text-base">Email</Label>
+            <Label htmlFor="patient-email" className="text-base">{t("email")}</Label>
             <Input
               id="patient-email"
               type="email"
@@ -363,7 +357,7 @@ const Intake = () => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="age" className="text-base">{t(lang, "age")}</Label>
+              <Label htmlFor="age" className="text-base">{t("age")}</Label>
               <Input
                 id="age"
                 type="number"
@@ -375,14 +369,14 @@ const Intake = () => {
               />
             </div>
             <div>
-              <Label htmlFor="sex" className="text-base">{t(lang, "sex")}</Label>
+              <Label htmlFor="sex" className="text-base">{t("sex")}</Label>
               <select
                 id="sex"
                 value={data.sex ?? ""}
                 onChange={(event) => update("sex", event.target.value || undefined)}
                 className={selectClassName()}
               >
-                {SEX_OPTIONS.map((option) => (
+                {sexOptions.map((option) => (
                   <option key={option.value || "blank"} value={option.value}>
                     {option.label}
                   </option>
@@ -391,18 +385,18 @@ const Intake = () => {
             </div>
           </div>
           <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-            Contact and demographic details help clinician review, longitudinal patient history, and route selection.
+            {t("patientProfileHelp")}
           </div>
         </div>
       ),
     },
     {
-      title: "Symptoms and vitals",
+      title: t("stepSymptomsVitals"),
       content: (
         <div className="space-y-5">
           <div>
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="symptoms" className="text-base">{t(lang, "symptoms")}</Label>
+              <Label htmlFor="symptoms" className="text-base">{t("symptoms")}</Label>
               <Button
                 type="button"
                 size="sm"
@@ -414,15 +408,15 @@ const Intake = () => {
                     : ""
                 }`}
                 aria-pressed={speech.listening}
-                aria-label={speech.listening ? "Stop voice input" : "Start voice input"}
+                aria-label={speech.listening ? t("stopVoiceInput") : t("startVoiceInput")}
               >
                 {speech.listening ? (
                   <>
-                    <MicOff className="mr-1.5 h-4 w-4" /> Stop
+                    <MicOff className="mr-1.5 h-4 w-4" /> {t("stop")}
                   </>
                 ) : (
                   <>
-                    <Mic className="mr-1.5 h-4 w-4" /> Speak
+                    <Mic className="mr-1.5 h-4 w-4" /> {t("speak")}
                   </>
                 )}
               </Button>
@@ -432,39 +426,39 @@ const Intake = () => {
               rows={5}
               value={data.symptoms + (speech.interim ? (data.symptoms ? " " : "") + speech.interim : "")}
               onChange={(event) => update("symptoms", event.target.value)}
-              placeholder={t(lang, "symptomsPlaceholder")}
+              placeholder={t("symptomsPlaceholder")}
               className="mt-2 rounded-xl text-base"
               maxLength={2000}
             />
             {speech.listening && (
               <p className="mt-1.5 text-xs text-primary flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
-                Listening in {LANGUAGES.find((language) => language.code === lang)?.native}…
+                {t("listeningIn", { language: LANGUAGES.find((language) => language.code === lang)?.native || lang })}
               </p>
             )}
             {speech.error && <p className="mt-1.5 text-xs text-destructive">{speech.error}</p>}
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="duration" className="text-base">{t(lang, "duration")}</Label>
+              <Label htmlFor="duration" className="text-base">{t("duration")}</Label>
               <Input
                 id="duration"
                 value={data.duration}
                 onChange={(event) => update("duration", event.target.value)}
-                placeholder="e.g. 3 days, 2 weeks"
+                placeholder={t("durationPlaceholder")}
                 className="mt-2 rounded-xl"
                 maxLength={120}
               />
             </div>
             <div>
-              <Label htmlFor="symptom-severity" className="text-base">Overall severity</Label>
+              <Label htmlFor="symptom-severity" className="text-base">{t("overallSeverity")}</Label>
               <select
                 id="symptom-severity"
                 value={data.symptom_severity ?? "moderate"}
                 onChange={(event) => update("symptom_severity", event.target.value as IntakeData["symptom_severity"])}
                 className={selectClassName()}
               >
-                {SEVERITY_OPTIONS.map((option) => (
+                {severityOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -474,7 +468,7 @@ const Intake = () => {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="pain-score" className="text-base">Pain score (0-10)</Label>
+              <Label htmlFor="pain-score" className="text-base">{t("painScore")}</Label>
               <Input
                 id="pain-score"
                 type="number"
@@ -486,7 +480,7 @@ const Intake = () => {
               />
             </div>
             <div>
-              <Label htmlFor="temperature" className="text-base">Temperature (°C)</Label>
+              <Label htmlFor="temperature" className="text-base">{t("temperature")}</Label>
               <Input
                 id="temperature"
                 type="number"
@@ -499,17 +493,17 @@ const Intake = () => {
               />
             </div>
             <div>
-              <Label htmlFor="blood-pressure" className="text-base">Blood pressure</Label>
+              <Label htmlFor="blood-pressure" className="text-base">{t("bloodPressure")}</Label>
               <Input
                 id="blood-pressure"
                 value={data.blood_pressure ?? ""}
                 onChange={(event) => update("blood_pressure", event.target.value)}
                 className="mt-2 rounded-xl"
-                placeholder="e.g. 120/80"
+                placeholder={t("bloodPressurePlaceholder")}
               />
             </div>
             <div>
-              <Label htmlFor="oxygen" className="text-base">Oxygen saturation (%)</Label>
+              <Label htmlFor="oxygen" className="text-base">{t("oxygenSaturation")}</Label>
               <Input
                 id="oxygen"
                 type="number"
@@ -521,7 +515,7 @@ const Intake = () => {
               />
             </div>
             <div>
-              <Label htmlFor="height" className="text-base">Height (cm)</Label>
+              <Label htmlFor="height" className="text-base">{t("height")}</Label>
               <Input
                 id="height"
                 type="number"
@@ -533,7 +527,7 @@ const Intake = () => {
               />
             </div>
             <div>
-              <Label htmlFor="weight" className="text-base">Weight (kg)</Label>
+              <Label htmlFor="weight" className="text-base">{t("weight")}</Label>
               <Input
                 id="weight"
                 type="number"
@@ -549,75 +543,75 @@ const Intake = () => {
       ),
     },
     {
-      title: "Medical history",
+      title: t("stepMedicalHistory"),
       content: (
         <div className="space-y-5">
           <div>
-            <Label htmlFor="comorbidities" className="text-base">{t(lang, "comorbidities")}</Label>
+            <Label htmlFor="comorbidities" className="text-base">{t("comorbidities")}</Label>
             <Input
               id="comorbidities"
               value={data.comorbidities ?? ""}
               onChange={(event) => update("comorbidities", event.target.value)}
               className="mt-2 rounded-xl"
-              placeholder="diabetes, hypertension, asthma"
+              placeholder={t("comorbiditiesPlaceholder")}
               maxLength={500}
             />
           </div>
           <div>
-            <Label htmlFor="medications" className="text-base">{t(lang, "medications")}</Label>
+            <Label htmlFor="medications" className="text-base">{t("medications")}</Label>
             <Input
               id="medications"
               value={data.medications ?? ""}
               onChange={(event) => update("medications", event.target.value)}
               className="mt-2 rounded-xl"
-              placeholder="amlodipine, metformin"
+              placeholder={t("medicationsPlaceholder")}
               maxLength={500}
             />
           </div>
           <div>
-            <Label htmlFor="allergies" className="text-base">{t(lang, "allergies")}</Label>
+            <Label htmlFor="allergies" className="text-base">{t("allergies")}</Label>
             <Input
               id="allergies"
               value={data.allergies ?? ""}
               onChange={(event) => update("allergies", event.target.value)}
               className="mt-2 rounded-xl"
-              placeholder="penicillin, honey"
+              placeholder={t("allergiesPlaceholder")}
               maxLength={300}
             />
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="surgeries" className="text-base">Past surgeries / admissions</Label>
+              <Label htmlFor="surgeries" className="text-base">{t("pastSurgeries")}</Label>
               <Textarea
                 id="surgeries"
                 rows={3}
                 value={data.past_surgeries ?? ""}
                 onChange={(event) => update("past_surgeries", event.target.value)}
                 className="mt-2 rounded-xl"
-                placeholder="appendix surgery in 2021"
+                placeholder={t("surgeriesPlaceholder")}
               />
             </div>
             <div>
-              <Label htmlFor="family-history" className="text-base">Family history</Label>
+              <Label htmlFor="family-history" className="text-base">{t("familyHistory")}</Label>
               <Textarea
                 id="family-history"
                 rows={3}
                 value={data.family_history ?? ""}
                 onChange={(event) => update("family_history", event.target.value)}
                 className="mt-2 rounded-xl"
-                placeholder="hypertension in parents"
+                placeholder={t("familyHistoryPlaceholder")}
               />
             </div>
           </div>
           <div>
-            <Label htmlFor="pregnancy-status" className="text-base">Pregnancy status</Label>
+            <Label htmlFor="pregnancy-status" className="text-base">{t("pregnancyStatus")}</Label>
             <select
               id="pregnancy-status"
               value={data.pregnancy_status ?? ""}
               onChange={(event) => update("pregnancy_status", event.target.value)}
               className={selectClassName()}
             >
-              {PREGNANCY_OPTIONS.map((option) => (
+              {pregnancyOptions.map((option) => (
                 <option key={option.value || "blank"} value={option.value}>
                   {option.label}
                 </option>
@@ -628,19 +622,19 @@ const Intake = () => {
       ),
     },
     {
-      title: "Lifestyle and preferences",
+      title: t("stepLifestylePreferences"),
       content: (
         <div className="space-y-5">
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="smoking-status" className="text-base">Smoking status</Label>
+              <Label htmlFor="smoking-status" className="text-base">{t("smokingStatus")}</Label>
               <select
                 id="smoking-status"
                 value={data.smoking_status ?? ""}
                 onChange={(event) => update("smoking_status", event.target.value)}
                 className={selectClassName()}
               >
-                {SMOKING_OPTIONS.map((option) => (
+                {smokingOptions.map((option) => (
                   <option key={option.value || "blank"} value={option.value}>
                     {option.label}
                   </option>
@@ -648,14 +642,14 @@ const Intake = () => {
               </select>
             </div>
             <div>
-              <Label htmlFor="alcohol-use" className="text-base">Alcohol use</Label>
+              <Label htmlFor="alcohol-use" className="text-base">{t("alcoholUse")}</Label>
               <select
                 id="alcohol-use"
                 value={data.alcohol_use ?? ""}
                 onChange={(event) => update("alcohol_use", event.target.value)}
                 className={selectClassName()}
               >
-                {ALCOHOL_OPTIONS.map((option) => (
+                {alcoholOptions.map((option) => (
                   <option key={option.value || "blank"} value={option.value}>
                     {option.label}
                   </option>
@@ -663,14 +657,14 @@ const Intake = () => {
               </select>
             </div>
             <div>
-              <Label htmlFor="sleep-quality" className="text-base">Sleep quality</Label>
+              <Label htmlFor="sleep-quality" className="text-base">{t("sleepQuality")}</Label>
               <select
                 id="sleep-quality"
                 value={data.sleep_quality ?? ""}
                 onChange={(event) => update("sleep_quality", event.target.value)}
                 className={selectClassName()}
               >
-                {SLEEP_OPTIONS.map((option) => (
+                {sleepOptions.map((option) => (
                   <option key={option.value || "blank"} value={option.value}>
                     {option.label}
                   </option>
@@ -678,14 +672,14 @@ const Intake = () => {
               </select>
             </div>
             <div>
-              <Label htmlFor="appetite-status" className="text-base">Appetite</Label>
+              <Label htmlFor="appetite-status" className="text-base">{t("appetite")}</Label>
               <select
                 id="appetite-status"
                 value={data.appetite_status ?? ""}
                 onChange={(event) => update("appetite_status", event.target.value)}
                 className={selectClassName()}
               >
-                {APPETITE_OPTIONS.map((option) => (
+                {appetiteOptions.map((option) => (
                   <option key={option.value || "blank"} value={option.value}>
                     {option.label}
                   </option>
@@ -694,51 +688,18 @@ const Intake = () => {
             </div>
           </div>
           <div>
-            <Label htmlFor="recent-travel" className="text-base">Recent travel</Label>
-            <Textarea
-              id="recent-travel"
-              rows={2}
-              value={data.recent_travel ?? ""}
-              onChange={(event) => update("recent_travel", event.target.value)}
-              className="mt-2 rounded-xl"
-              placeholder="Any recent travel, hospitalization, or stay outside your city"
-            />
-          </div>
-          <div>
-            <Label htmlFor="recent-exposure" className="text-base">Recent exposure</Label>
+            <Label htmlFor="recent-exposure" className="text-base">{t("recentExposure")}</Label>
             <Textarea
               id="recent-exposure"
               rows={2}
               value={data.recent_exposure ?? ""}
               onChange={(event) => update("recent_exposure", event.target.value)}
               className="mt-2 rounded-xl"
-              placeholder="Sick contacts, food poisoning, dust exposure, mosquito exposure"
+              placeholder={t("recentExposurePlaceholder")}
             />
           </div>
-          <div>
-            <Label className="text-base">{t(lang, "preferences")}</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {PREF_OPTIONS.map((option) => {
-                const active = data.preferences?.includes(option.value);
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => togglePref(option.value)}
-                    className={`rounded-full border px-4 py-2 text-sm transition-smooth ${
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card hover:border-primary/40"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              The live care path is capped at two modalities unless a clinician overrides it, but the result screen will still show all available treatment pathways.
-            </p>
+          <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
+            {t("automaticModalitySelectionHelp")}
           </div>
         </div>
       ),
@@ -749,13 +710,13 @@ const Intake = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteHeader lang={lang} onLangChange={onLangChange} />
+      <SiteHeader />
 
       <main className="container py-12 md:py-16 max-w-4xl">
         <div className="mb-8">
           <OfflineModelPanel
-            title="Offline Clinical Model"
-            description="This intake flow can use the local Ollama model on your machine for specialist-style synthesis, while the rule engine and hybrid triage remain the final safety authority."
+            title={t("offlineClinicalModelTitle")}
+            description={t("offlineClinicalModelDescription")}
           />
         </div>
 
@@ -766,38 +727,38 @@ const Intake = () => {
                 <UserRound className="h-5 w-5 text-primary-foreground" />
               </div>
               <div>
-                <div className="text-xs uppercase tracking-[0.18em] text-primary font-semibold">Offline patient memory</div>
+                <div className="text-xs uppercase tracking-[0.18em] text-primary font-semibold">{t("patientMemoryTitle")}</div>
                 <div className="font-display text-xl font-semibold">
-                  {patient ? patient.full_name : "Use local patient sign-in"}
+                  {patient ? patient.full_name : t("useLocalPatientSignIn")}
                 </div>
               </div>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
               {patientLoading
-                ? "Loading local patient profile..."
+                ? t("loadingLocalPatientProfile")
                 : patient
-                  ? "Signed-in patients can reuse their previous intake details and save new results into the local offline database."
-                  : "Sign in from the patient portal to reuse prior data and build a local longitudinal patient history."}
+                  ? t("patientMemorySignedIn")
+                  : t("patientMemorySignedOut")}
             </div>
             <div className="mt-4 flex flex-wrap gap-3">
               {patient ? (
                 <>
                   <Button asChild variant="outline" className="rounded-full">
-                    <Link to="/patient">Open patient portal</Link>
+                    <Link to="/patient">{t("openPatientPortal")}</Link>
                   </Button>
                   {latestHistory && (
                     <Button type="button" variant="outline" className="rounded-full" onClick={reuseLatestHistory}>
-                      <RefreshCw className="mr-2 h-4 w-4" /> Reuse previous data
+                      <RefreshCw className="mr-2 h-4 w-4" /> {t("reusePreviousData")}
                     </Button>
                   )}
                   <Button type="button" variant="outline" className="rounded-full" onClick={startBlankIntake}>
-                    Start blank intake
+                    {t("startBlankIntake")}
                   </Button>
                 </>
               ) : (
                 <Button asChild className="rounded-full bg-gradient-primary text-primary-foreground shadow-glow">
                   <Link to="/patient">
-                    <LogIn className="mr-2 h-4 w-4" /> Sign in locally
+                    <LogIn className="mr-2 h-4 w-4" /> {t("signInLocally")}
                   </Link>
                 </Button>
               )}
@@ -805,7 +766,7 @@ const Intake = () => {
           </div>
 
           <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-soft">
-            <div className="text-xs uppercase tracking-[0.18em] text-primary font-semibold">Last patient record</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-primary font-semibold">{t("lastRecordTitle")}</div>
             {patientSummary ? (
               <div className="mt-3 space-y-3">
                 <div className="text-sm text-foreground leading-relaxed">{patientSummary.summary}</div>
@@ -814,15 +775,15 @@ const Intake = () => {
                   {patientSummary.createdAt}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Preferred result language: {LANGUAGES.find((language) => language.code === latestHistory?.language_code)?.native || lang}
+                  {t("preferredResultLanguage")}: {LANGUAGES.find((language) => language.code === latestHistory?.language_code)?.native || lang}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  New intakes now start blank. Use "Reuse previous data" only when you want to carry details forward.
+                  {t("blankIntakeHint")}
                 </div>
               </div>
             ) : (
               <div className="mt-3 text-sm text-muted-foreground">
-                No offline patient history yet. The first completed intake will be stored locally for future reuse.
+                {t("lastRecordEmpty")}
               </div>
             )}
           </div>
@@ -840,7 +801,7 @@ const Intake = () => {
         <div className="rounded-3xl border border-border/70 bg-card p-7 md:p-10 shadow-elegant animate-fade-up">
           <div className="mb-6">
             <div className="text-xs uppercase tracking-[0.2em] text-primary font-semibold">
-              Step {step + 1} of {steps.length}
+              {t("stepOf", { current: step + 1, total: steps.length })}
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-semibold mt-1.5 tracking-tight">
               {steps[step].title}
@@ -854,13 +815,13 @@ const Intake = () => {
               <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-primary-soft/50 p-4 text-sm">
                 <AlertTriangle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <p className="text-foreground/80">
-                  Hybrid triage, safety rules, multilingual output, and clinician review run locally. When the Ollama model is reachable, Sanjeevani also uses an offline LLM to broaden treatment options across all modalities and localize the full result view.
+                  {t("intakeSafetyInfo")}
                 </p>
               </div>
               <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm">
                 <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
                 <p className="text-foreground/80">
-                  Sanjeevani provides decision-support, not a diagnosis. Call local emergency services if you are in danger.
+                  {t("intakeDisclaimer")}
                 </p>
               </div>
             </div>
@@ -872,14 +833,14 @@ const Intake = () => {
               onClick={() => (step === 0 ? navigate("/") : setStep(step - 1))}
               className="rounded-full"
             >
-              <ArrowLeft className="mr-1.5 h-4 w-4" /> {t(lang, "back")}
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> {t("back")}
             </Button>
             {!isLast ? (
               <Button
                 onClick={() => setStep(step + 1)}
                 className="rounded-full bg-gradient-primary text-primary-foreground shadow-glow px-6"
               >
-                {t(lang, "next")} <ArrowRight className="ml-1.5 h-4 w-4" />
+                {t("next")} <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             ) : (
               <Button
@@ -889,11 +850,11 @@ const Intake = () => {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Running hybrid triage + offline model…
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t("runningHybridTriage")}
                   </>
                 ) : (
                   <>
-                    {t(lang, "analyze")} <ArrowRight className="ml-1.5 h-4 w-4" />
+                    {t("analyze")} <ArrowRight className="ml-1.5 h-4 w-4" />
                   </>
                 )}
               </Button>

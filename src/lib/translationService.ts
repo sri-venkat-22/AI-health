@@ -21,6 +21,21 @@ export interface TranslateBatchResult {
   warning: string | null;
 }
 
+const PLACEHOLDER_RE = /\{\{[^}]+\}\}/g;
+const PROTECTED_TERMS = [
+  "Sanjeevani",
+  "WHO",
+  "ICMR",
+  "AYUSH",
+  "Ollama",
+  "JSON",
+  "ICD/SNOMED",
+  "ICD-10",
+  "SpO2",
+  "LLM",
+  "GP",
+] as const;
+
 function simpleHash(value: string) {
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
@@ -36,7 +51,73 @@ function getStorage(mode: StorageMode) {
 }
 
 function getCacheKey(input: TranslateBatchInput) {
-  return `sanjeevani:translation:${input.cacheNamespace}:v1:${input.langCode}:${simpleHash(input.strings.join("\u241f"))}`;
+  return `sanjeevani:translation:${input.cacheNamespace}:v2:${input.langCode}:${simpleHash(input.strings.join("\u241f"))}`;
+}
+
+function protectText(text: string) {
+  let protectedText = text;
+  const tokens: Array<[string, string]> = [];
+  const replacements = [
+    ...Array.from(text.matchAll(PLACEHOLDER_RE)).map((match) => match[0]),
+    ...PROTECTED_TERMS,
+  ];
+
+  Array.from(new Set(replacements)).forEach((value, index) => {
+    if (!value || !protectedText.includes(value)) return;
+    const token = `ZXQTOKEN${index}QXZ`;
+    protectedText = protectedText.split(value).join(token);
+    tokens.push([token, value]);
+  });
+
+  return { protectedText, tokens };
+}
+
+function restoreText(text: string, tokens: Array<[string, string]>) {
+  return tokens.reduce(
+    (result, [token, value]) => result.split(token).join(value),
+    text,
+  );
+}
+
+async function translateViaGoogle(text: string, langCode: LanguageCode) {
+  if (!text.trim()) return text;
+
+  const { protectedText, tokens } = protectText(text);
+  const url =
+    "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en" +
+    `&tl=${encodeURIComponent(langCode)}&dt=t&q=${encodeURIComponent(protectedText)}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Translation API responded with ${response.status}.`);
+  }
+
+  const payload = (await response.json()) as Array<Array<[string]>>;
+  const translated = (payload[0] || [])
+    .map((part) => part[0] || "")
+    .join("");
+
+  return restoreText(translated, tokens)
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+:/g, ":")
+    .replace(/\s+%/g, "%")
+    .trim();
+}
+
+async function translateViaGoogleBatch(strings: string[], langCode: LanguageCode) {
+  const translations = new Array<string>(strings.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < strings.length) {
+      const index = cursor;
+      cursor += 1;
+      translations[index] = await translateViaGoogle(strings[index], langCode);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(8, strings.length) }, () => worker()));
+  return translations;
 }
 
 export async function translateTextBatch(input: TranslateBatchInput): Promise<TranslateBatchResult> {
@@ -64,6 +145,21 @@ export async function translateTextBatch(input: TranslateBatchInput): Promise<Tr
         storage.removeItem(cacheKey);
       }
     }
+  }
+
+  try {
+    const googleTranslations = await translateViaGoogleBatch(input.strings, input.langCode);
+    if (storage) {
+      storage.setItem(cacheKey, JSON.stringify(googleTranslations));
+    }
+
+    return {
+      translations: googleTranslations,
+      fallback: false,
+      warning: null,
+    };
+  } catch {
+    // fall back to offline translation
   }
 
   const settings = getOfflineModelSettings() || DEFAULT_OFFLINE_MODEL_SETTINGS;

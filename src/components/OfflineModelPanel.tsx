@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrainCircuit, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { getOfflineModelSettings, saveOfflineModelSettings } from "@/lib/localStore";
 import { DEFAULT_OFFLINE_MODEL_SETTINGS, getOfflineModelStatus } from "@/lib/offlineLlm";
 import type { OfflineModelSettings, OfflineModelStatus } from "@/lib/types";
@@ -14,13 +15,31 @@ interface Props {
 }
 
 export const OfflineModelPanel = ({
-  title = "Offline LLM",
-  description = "Uses Ollama on your machine for local clinical synthesis while deterministic safety rules stay authoritative.",
+  title,
+  description,
   onSettingsChange,
 }: Props) => {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState<OfflineModelSettings>(DEFAULT_OFFLINE_MODEL_SETTINGS);
   const [status, setStatus] = useState<OfflineModelStatus | null>(null);
   const [checking, setChecking] = useState(false);
+  const resolvedTitle = title || t("moduleOfflineLlmTitle");
+  const resolvedDescription = description || t("offlinePanelDescription");
+  const preferredModelOrder = ["phi3:latest", "qwen3:8b", "qwen3:latest"];
+  const modelOptions = useMemo(
+    () =>
+      Array.from(new Set([...(status?.installedModels || []), settings.model].filter(Boolean))).sort((left, right) => {
+        const leftIndex = preferredModelOrder.indexOf(left);
+        const rightIndex = preferredModelOrder.indexOf(right);
+        if (leftIndex !== -1 || rightIndex !== -1) {
+          if (leftIndex === -1) return 1;
+          if (rightIndex === -1) return -1;
+          return leftIndex - rightIndex;
+        }
+        return left.localeCompare(right);
+      }),
+    [settings.model, status?.installedModels],
+  );
 
   const refresh = useCallback(async (nextSettings: OfflineModelSettings) => {
     setChecking(true);
@@ -49,9 +68,9 @@ export const OfflineModelPanel = ({
         <div>
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-5 w-5 text-primary" />
-            <h2 className="font-display text-xl font-semibold">{title}</h2>
+            <h2 className="font-display text-xl font-semibold">{resolvedTitle}</h2>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{description}</p>
+          <p className="mt-2 text-sm text-muted-foreground max-w-2xl">{resolvedDescription}</p>
         </div>
         <Button
           type="button"
@@ -62,13 +81,13 @@ export const OfflineModelPanel = ({
           disabled={checking}
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${checking ? "animate-spin" : ""}`} />
-          Refresh
+          {t("refresh")}
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="md:col-span-1">
-          <Label htmlFor="offline-enabled">Use local model</Label>
+          <Label htmlFor="offline-enabled">{t("useLocalModel")}</Label>
           <label
             htmlFor="offline-enabled"
             className="mt-2 flex h-10 items-center gap-3 rounded-xl border border-border bg-background px-3 text-sm"
@@ -79,12 +98,12 @@ export const OfflineModelPanel = ({
               checked={settings.enabled}
               onChange={(event) => void update({ enabled: event.target.checked })}
             />
-            Enable offline Ollama synthesis
+            {t("enableOfflineOllamaSynthesis")}
           </label>
         </div>
 
         <div>
-          <Label htmlFor="offline-base-url">Base URL</Label>
+          <Label htmlFor="offline-base-url">{t("baseUrl")}</Label>
           <Input
             id="offline-base-url"
             value={settings.baseUrl}
@@ -95,20 +114,19 @@ export const OfflineModelPanel = ({
         </div>
 
         <div>
-          <Label htmlFor="offline-model">Model</Label>
-          <Input
+          <Label htmlFor="offline-model">{t("model")}</Label>
+          <select
             id="offline-model"
-            list="offline-model-list"
             value={settings.model}
-            onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))}
-            onBlur={() => void update({ model: settings.model })}
-            className="mt-2 rounded-xl"
-          />
-          <datalist id="offline-model-list">
-            {(status?.installedModels || []).map((model) => (
-              <option key={model} value={model} />
+            onChange={(event) => void update({ model: event.target.value })}
+            className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+          >
+            {modelOptions.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
             ))}
-          </datalist>
+          </select>
         </div>
       </div>
 
@@ -122,9 +140,9 @@ export const OfflineModelPanel = ({
         >
           {settings.enabled
             ? status?.available
-              ? `Ready: ${status.model}`
-              : "Fallback mode"
-            : "Offline LLM disabled"}
+              ? t("offlineModelReady", { model: status.model })
+              : t("fallbackMode")
+            : t("offlineLlmDisabled")}
         </span>
         {status?.installedModels?.map((model) => (
           <span key={model} className="rounded-full px-3 py-1 border border-border bg-muted/60 text-muted-foreground">

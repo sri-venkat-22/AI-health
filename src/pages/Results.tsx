@@ -15,84 +15,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { LANGUAGES, getLanguageNative, type LanguageCode } from "@/lib/languages";
-import { getLocalizedModalityLabel, getLocalizedRouteLabel, localizePlanForLanguage, translateEnglishStrings } from "@/lib/planLocalization";
+import { getLocalizedModalityLabel, getLocalizedRouteLabel, localizePlanForLanguage } from "@/lib/planLocalization";
 import type { EvidenceTier, IntegrativePlan, Modality, RiskLevel } from "@/lib/types";
-
-const RESULT_UI_ENGLISH = {
-  newIntake: "New intake",
-  confidence: "Confidence",
-  recommendedCarePath: "Recommended care path",
-  route: "Route",
-  crossModality: "Cross-modality",
-  offlineModel: "Offline model",
-  offlineModelFallback: "Offline model unavailable, deterministic fallback used",
-  patientSummary: "Patient summary",
-  backTranslation: "Back-translation",
-  suspectedConditions: "Suspected conditions",
-  safetyReview: "Safety review",
-  resolution: "Resolution",
-  integrativePlan: "Integrative plan",
-  activePath: "active path",
-  optionalPath: "optional path",
-  watchForThese: "Watch for these - seek care immediately",
-  whyThisPlan: "Why this plan?",
-  triggeredRules: "Triggered rules",
-  hybridTriage: "Hybrid triage",
-  logisticProbability: "Logistic probability",
-  boostingScore: "Boosting score",
-  ensembleProbability: "Ensemble probability",
-  riskFactors: "Risk factors",
-  normalizedSymptoms: "Normalized symptoms",
-  safetyChecks: "Safety checks",
-  evidenceTrace: "Evidence trace",
-  workflowTrace: "Workflow trace",
-  safetyResolutionAgent: "Safety Resolution Agent",
-  provenance: "Provenance",
-  startNewIntake: "Start a new intake",
-  requestClinicianReview: "Request clinician review",
-  whenToUse: "When to use",
-  safety: "Safety",
-  glossary: "glossary",
-  updatingLanguage: "Updating language...",
-  loadingResult: "Loading result...",
-  severe: "severe",
-  moderate: "moderate",
-  mild: "mild",
-  info: "info",
-  high: "high",
-  low: "low",
-  primary: "primary",
-  complementary: "complementary",
-  optional: "optional",
-  strongEvidence: "Strong evidence",
-  observational: "Observational",
-  traditional: "Traditional",
-  caution: "Caution",
-  riskEmergent: "EMERGENT",
-  riskUrgent: "URGENT",
-  riskRoutine: "ROUTINE",
-  riskSelfCare: "SELF-CARE",
-  riskEmergentSubtitle: "Seek emergency care now",
-  riskUrgentSubtitle: "See a doctor within 24 hours",
-  riskRoutineSubtitle: "Schedule a routine visit",
-  riskSelfCareSubtitle: "Manage at home with care",
-  icd10: "ICD-10",
-  dosha: "Dosha",
-  herbDrugInteraction: "Herb-drug interaction",
-  contraindication: "Contraindication",
-  allergy: "Allergy",
-  crossModalityConflict: "Cross-modality conflict",
-  redFlag: "Red flag",
-  general: "General",
-} as const;
-
-type ResultUiLabels = typeof RESULT_UI_ENGLISH;
 
 interface EvidenceBadgeMeta {
   shortCode: string;
   label: string;
   cls: string;
+}
+
+interface PrioritizedTreatmentView {
+  primary: IntegrativePlan["plan_segments"][number];
+  secondary: IntegrativePlan["plan_segments"][number] | null;
+  homeSupport: IntegrativePlan["plan_segments"][number] | null;
+}
+
+interface TreatmentCardConfig {
+  key: "primary" | "secondary" | "home";
+  heading: string;
+  segment: IntegrativePlan["plan_segments"][number] | null;
+  emphasis: "primary" | "secondary" | "home";
 }
 
 const MODALITY_ICON: Record<Modality, typeof Stethoscope> = {
@@ -101,8 +45,6 @@ const MODALITY_ICON: Record<Modality, typeof Stethoscope> = {
   Homeopathy: Droplets,
   "Home Remedies": Home,
 };
-
-const RESULT_UI_KEYS = Object.keys(RESULT_UI_ENGLISH) as Array<keyof ResultUiLabels>;
 
 function getStoredResultLanguage() {
   if (typeof window === "undefined") return null;
@@ -127,73 +69,59 @@ function inferLanguageFromPlan(plan: IntegrativePlan) {
   return translationMatch?.code ?? "en";
 }
 
-async function getLocalizedUiLabels(lang: LanguageCode): Promise<ResultUiLabels> {
-  if (lang === "en") return RESULT_UI_ENGLISH;
-
-  const translated = await translateEnglishStrings(
-    RESULT_UI_KEYS.map((key) => RESULT_UI_ENGLISH[key]),
-    lang,
-  );
-
-  return RESULT_UI_KEYS.reduce((accumulator, key, index) => {
-    accumulator[key] = translated[index] || RESULT_UI_ENGLISH[key];
-    return accumulator;
-  }, { ...RESULT_UI_ENGLISH });
-}
-
-function buildRiskMeta(ui: ResultUiLabels) {
+function buildRiskMeta(t: (key: string, values?: Record<string, string | number>) => string) {
   return {
     emergent: {
-      label: ui.riskEmergent,
+      label: t("riskEmergent"),
       ring: "ring-risk-emergent/40",
       bg: "bg-risk-emergent",
       text: "text-risk-emergent",
-      subtitle: ui.riskEmergentSubtitle,
+      subtitle: t("riskEmergentSubtitle"),
     },
     urgent: {
-      label: ui.riskUrgent,
+      label: t("riskUrgent"),
       ring: "ring-risk-urgent/40",
       bg: "bg-risk-urgent",
       text: "text-risk-urgent",
-      subtitle: ui.riskUrgentSubtitle,
+      subtitle: t("riskUrgentSubtitle"),
     },
     routine: {
-      label: ui.riskRoutine,
+      label: t("riskRoutine"),
       ring: "ring-risk-routine/40",
       bg: "bg-risk-routine",
       text: "text-risk-routine",
-      subtitle: ui.riskRoutineSubtitle,
+      subtitle: t("riskRoutineSubtitle"),
     },
     "self-care": {
-      label: ui.riskSelfCare,
+      label: t("riskSelfCare"),
       ring: "ring-risk-selfcare/40",
       bg: "bg-risk-selfcare",
       text: "text-risk-selfcare",
-      subtitle: ui.riskSelfCareSubtitle,
+      subtitle: t("riskSelfCareSubtitle"),
     },
   } satisfies Record<RiskLevel, { label: string; ring: string; bg: string; text: string; subtitle: string }>;
 }
 
-function buildTierMeta(ui: ResultUiLabels) {
+function buildTierMeta(t: (key: string, values?: Record<string, string | number>) => string) {
   return {
     A: {
       shortCode: "A",
-      label: ui.strongEvidence,
+      label: t("strongEvidence"),
       cls: "bg-risk-selfcare/15 text-risk-selfcare border-risk-selfcare/30",
     },
     B: {
       shortCode: "B",
-      label: ui.observational,
+      label: t("observational"),
       cls: "bg-risk-routine/15 text-risk-routine border-risk-routine/30",
     },
     T: {
       shortCode: "T",
-      label: ui.traditional,
+      label: t("traditional"),
       cls: "bg-primary/15 text-primary border-primary/30",
     },
     Caution: {
       shortCode: "!",
-      label: ui.caution,
+      label: t("caution"),
       cls: "bg-warning/15 text-warning-foreground border-warning/40",
     },
   } satisfies Record<EvidenceTier, EvidenceBadgeMeta>;
@@ -202,57 +130,138 @@ function buildTierMeta(ui: ResultUiLabels) {
 function EvidenceBadge({ meta }: { meta: EvidenceBadgeMeta }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap ${meta.cls}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap ${meta.cls}`}
     >
       <span>{meta.shortCode}</span>
-      <span className="opacity-70">·</span>
+      <span className="opacity-55">•</span>
       <span>{meta.label}</span>
     </span>
   );
 }
 
-function localizePriority(priority: string, ui: ResultUiLabels) {
-  if (priority === "primary") return ui.primary;
-  if (priority === "complementary") return ui.complementary;
-  return ui.optional;
+function localizePriority(
+  priority: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (priority === "primary") return t("primary");
+  if (priority === "complementary") return t("complementary");
+  return t("optional");
 }
 
-function localizeSeverity(severity: string, ui: ResultUiLabels) {
-  if (severity === "severe") return ui.severe;
-  if (severity === "moderate") return ui.moderate;
-  if (severity === "mild") return ui.mild;
-  return ui.info;
+function localizeSeverity(
+  severity: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (severity === "severe") return t("severe");
+  if (severity === "moderate") return t("moderate");
+  if (severity === "mild") return t("mild");
+  return t("info");
 }
 
-function localizeLikelihood(likelihood: string, ui: ResultUiLabels) {
-  if (likelihood === "high") return ui.high;
-  if (likelihood === "moderate") return ui.moderate;
-  return ui.low;
+function localizeLikelihood(
+  likelihood: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (likelihood === "high") return t("high");
+  if (likelihood === "moderate") return t("moderate");
+  return t("low");
 }
 
-function localizeWarningType(type: string, ui: ResultUiLabels) {
-  if (type === "herb-drug-interaction") return ui.herbDrugInteraction;
-  if (type === "contraindication") return ui.contraindication;
-  if (type === "allergy") return ui.allergy;
-  if (type === "cross-modality-conflict") return ui.crossModalityConflict;
-  if (type === "red-flag") return ui.redFlag;
-  return ui.general;
+function localizeWarningType(
+  type: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (type === "herb-drug-interaction") return t("herbDrugInteraction");
+  if (type === "contraindication") return t("contraindication");
+  if (type === "allergy") return t("allergy");
+  if (type === "cross-modality-conflict") return t("crossModalityConflict");
+  if (type === "red-flag") return t("redFlag");
+  return t("general");
 }
 
-function localizeSourceModality(modality: string | undefined, lang: LanguageCode, ui: ResultUiLabels) {
+function localizeSourceModality(
+  modality: string | undefined,
+  lang: LanguageCode,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
   if (!modality) return "";
-  if (modality === "Cross-modality") return ui.crossModality;
+  if (modality === "Cross-modality") return t("crossModality");
   return getLocalizedModalityLabel(modality as Modality, lang);
+}
+
+function localizeQualityMode(
+  qualityMode: IntegrativePlan["translation"]["quality_mode"],
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  if (qualityMode === "offline-llm") return t("qualityModeOfflineLlm");
+  if (qualityMode === "glossary") return t("qualityModeGlossary");
+  return qualityMode ?? "";
+}
+
+function buildPrioritizedTreatmentView(plan: IntegrativePlan): PrioritizedTreatmentView {
+  const homeSupport =
+    plan.plan_segments.find((segment) => segment.modality === "Home Remedies") || null;
+  const nonHomeSegments = plan.plan_segments.filter((segment) => segment.modality !== "Home Remedies");
+
+  const primary =
+    nonHomeSegments.find((segment) => segment.selected && segment.priority === "primary") ||
+    nonHomeSegments.find((segment) => segment.selected) ||
+    nonHomeSegments.find((segment) => segment.priority === "primary") ||
+    nonHomeSegments[0] ||
+    homeSupport ||
+    plan.plan_segments[0];
+
+  const secondary =
+    nonHomeSegments.find((segment) => segment.selected && segment.modality !== primary.modality) ||
+    nonHomeSegments.find((segment) => segment.priority === "complementary" && segment.modality !== primary.modality) ||
+    nonHomeSegments.find((segment) => segment.modality !== primary.modality) ||
+    null;
+
+  return {
+    primary,
+    secondary: secondary && secondary.modality !== primary.modality ? secondary : null,
+    homeSupport,
+  };
+}
+
+function getTreatmentCardTone(emphasis: TreatmentCardConfig["emphasis"]) {
+  if (emphasis === "primary") {
+    return {
+      card: "border-primary/40 bg-card shadow-glow",
+      icon: "bg-gradient-primary text-primary-foreground shadow-glow",
+      pill: "bg-primary text-primary-foreground",
+      lead: "border-primary/25 bg-primary-soft/35",
+      support: "border-border/70 bg-background/95",
+    };
+  }
+
+  if (emphasis === "home") {
+    return {
+      card: "border-primary/20 bg-[linear-gradient(180deg,rgba(234,248,250,0.96),rgba(255,255,255,0.96))]",
+      icon: "bg-primary-soft text-primary",
+      pill: "bg-primary/15 text-primary",
+      lead: "border-primary/20 bg-white/80",
+      support: "border-primary/15 bg-white/75",
+    };
+  }
+
+  return {
+    card: "border-border/70 bg-card shadow-soft",
+    icon: "bg-primary-soft text-primary",
+    pill: "bg-secondary text-secondary-foreground",
+    lead: "border-border/70 bg-muted/20",
+    support: "border-border/60 bg-background/95",
+  };
 }
 
 const Results = () => {
   const navigate = useNavigate();
+  const { language, setLanguage, t, isTranslating, translationWarning } = useLanguage();
   const [sourcePlan, setSourcePlan] = useState<IntegrativePlan | null>(null);
   const [plan, setPlan] = useState<IntegrativePlan | null>(null);
-  const [lang, setLang] = useState<LanguageCode>("en");
-  const [ui, setUi] = useState<ResultUiLabels>(RESULT_UI_ENGLISH);
   const [loading, setLoading] = useState(true);
   const [localizing, setLocalizing] = useState(false);
+  const [planTranslationWarning, setPlanTranslationWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("sanjeevani:plan");
@@ -263,15 +272,14 @@ const Results = () => {
 
     try {
       const parsed = JSON.parse(raw) as IntegrativePlan;
+      const initialLanguage = getStoredResultLanguage() ?? inferLanguageFromPlan(parsed);
       setSourcePlan(parsed);
-      setLang(getStoredResultLanguage() ?? inferLanguageFromPlan(parsed));
+      setLanguage(initialLanguage);
+      setLoading(false);
     } catch {
       navigate("/intake");
-      return;
     }
-
-    setLoading(false);
-  }, [navigate]);
+  }, [navigate, setLanguage]);
 
   useEffect(() => {
     if (!sourcePlan) return;
@@ -281,15 +289,11 @@ const Results = () => {
     const localize = async () => {
       setLocalizing(true);
       try {
-        const [localizedPlan, localizedUi] = await Promise.all([
-          localizePlanForLanguage(sourcePlan, lang),
-          getLocalizedUiLabels(lang),
-        ]);
-
+        const localizedPlan = await localizePlanForLanguage(sourcePlan, language);
         if (cancelled) return;
         setPlan(localizedPlan.plan);
-        setUi(localizedUi);
-        sessionStorage.setItem("sanjeevani:result-language", lang);
+        setPlanTranslationWarning(localizedPlan.translation_warning ?? null);
+        sessionStorage.setItem("sanjeevani:result-language", language);
       } finally {
         if (!cancelled) setLocalizing(false);
       }
@@ -300,10 +304,15 @@ const Results = () => {
     return () => {
       cancelled = true;
     };
-  }, [lang, sourcePlan]);
+  }, [language, sourcePlan]);
 
-  const riskMeta = useMemo(() => buildRiskMeta(ui), [ui]);
-  const tierMeta = useMemo(() => buildTierMeta(ui), [ui]);
+  const riskMeta = useMemo(() => buildRiskMeta(t), [t]);
+  const tierMeta = useMemo(() => buildTierMeta(t), [t]);
+  const activeWarnings = Array.from(new Set([translationWarning, planTranslationWarning].filter(Boolean))) as string[];
+  const prioritizedTreatment = useMemo(
+    () => (plan ? buildPrioritizedTreatmentView(plan) : null),
+    [plan],
+  );
 
   if (loading || !sourcePlan) {
     return (
@@ -312,7 +321,7 @@ const Results = () => {
         <main className="container py-20 max-w-4xl">
           <div className="rounded-3xl border border-border/70 bg-card p-10 shadow-soft flex items-center justify-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span>{RESULT_UI_ENGLISH.loadingResult}</span>
+            <span>{t("loadingResult")}</span>
           </div>
         </main>
         <SiteFooter />
@@ -323,11 +332,11 @@ const Results = () => {
   if (!plan) {
     return (
       <div className="min-h-screen bg-background">
-        <SiteHeader lang={lang} onLangChange={setLang} />
+        <SiteHeader />
         <main className="container py-20 max-w-4xl">
           <div className="rounded-3xl border border-border/70 bg-card p-10 shadow-soft flex items-center justify-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span>{ui.updatingLanguage}</span>
+            <span>{t("translationLoading")}</span>
           </div>
         </main>
         <SiteFooter />
@@ -336,21 +345,57 @@ const Results = () => {
   }
 
   const meta = riskMeta[plan.risk_level];
+  const prioritizedView = prioritizedTreatment || buildPrioritizedTreatmentView(plan);
+  const treatmentCards: TreatmentCardConfig[] = [
+    {
+      key: "primary",
+      heading: t("primaryTreatment"),
+      segment: prioritizedView.primary,
+      emphasis: "primary",
+    },
+    {
+      key: "secondary",
+      heading: t("secondaryTreatment"),
+      segment: prioritizedView.secondary,
+      emphasis: "secondary",
+    },
+    {
+      key: "home",
+      heading: t("moduleHomeRemediesTitle"),
+      segment: prioritizedView.homeSupport,
+      emphasis: "home",
+    },
+  ];
+  const primaryTreatmentCard = treatmentCards[0];
+  const supportingTreatmentCards = treatmentCards.slice(1);
 
   return (
-    <div className="min-h-screen bg-background" lang={lang}>
-      <SiteHeader lang={lang} onLangChange={setLang} />
+    <div className="min-h-screen bg-background" lang={language}>
+      <SiteHeader />
       <main className="container py-10 max-w-5xl">
         <Button variant="ghost" asChild className="mb-6 rounded-full -ml-3">
           <Link to="/intake">
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> {ui.newIntake}
+            <ArrowLeft className="mr-1.5 h-4 w-4" /> {t("newIntake")}
           </Link>
         </Button>
 
-        {localizing && (
+        {(localizing || isTranslating) && (
           <div className="mb-4 rounded-2xl border border-primary/20 bg-primary-soft/60 px-4 py-3 text-sm text-primary flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>{ui.updatingLanguage}</span>
+            <span>{t("translationLoading")}</span>
+          </div>
+        )}
+
+        {activeWarnings.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {activeWarnings.map((warning) => (
+              <div
+                key={warning}
+                className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+              >
+                {warning}
+              </div>
+            ))}
           </div>
         )}
 
@@ -365,22 +410,24 @@ const Results = () => {
                 <div className={`text-xs font-bold tracking-[0.22em] ${meta.text}`}>{meta.label}</div>
                 <div className="font-display text-3xl md:text-4xl font-semibold mt-1 tracking-tight">{meta.subtitle}</div>
                 <div className="text-sm text-muted-foreground mt-1">
-                  {ui.confidence}: {(plan.confidence * 100).toFixed(0)}%
+                  {t("confidence")}: {(plan.confidence * 100).toFixed(0)}%
                 </div>
               </div>
             </div>
             <div className="md:ml-auto md:max-w-md">
-              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-semibold mb-1">{ui.recommendedCarePath}</div>
+              <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground font-semibold mb-1">
+                {t("recommendedCarePath")}
+              </div>
               <div className="text-foreground leading-relaxed">{plan.translation.care_path || plan.care_path}</div>
               <div className="text-xs text-muted-foreground mt-2">
-                {ui.route}: {getLocalizedRouteLabel(plan.clinical_route, lang)}
+                {t("route")}: {getLocalizedRouteLabel(plan.clinical_route, language)}
                 {plan.specialist_referral && <> · {plan.specialist_referral}</>}
               </div>
               {plan.llm_metadata?.enabled && (
                 <div className="text-xs text-muted-foreground mt-1">
                   {plan.llm_metadata.available
-                    ? `${ui.offlineModel}: ${plan.llm_metadata.model}`
-                    : ui.offlineModelFallback}
+                    ? `${t("offlineModel")}: ${plan.llm_metadata.model}`
+                    : t("offlineModelFallback")}
                 </div>
               )}
             </div>
@@ -392,7 +439,7 @@ const Results = () => {
             <div className="flex items-center gap-2 text-primary">
               <Languages className="h-5 w-5" />
               <span className="font-semibold">
-                {ui.patientSummary} — {plan.translation.language}
+                {t("patientSummary")} — {plan.translation.language}
               </span>
               {typeof plan.back_translation_confidence === "number" && (
                 <span
@@ -403,19 +450,19 @@ const Results = () => {
                         ? "bg-risk-routine/15 text-risk-routine border border-risk-routine/30"
                         : "bg-warning/15 text-warning-foreground border border-warning/40"
                   }`}
-                  title={`${ui.backTranslation} fidelity score`}
+                  title={`${t("backTranslation")} fidelity score`}
                 >
-                  {ui.backTranslation} {(plan.back_translation_confidence * 100).toFixed(0)}%
+                  {t("backTranslation")} {(plan.back_translation_confidence * 100).toFixed(0)}%
                 </span>
               )}
               {plan.translation.quality_mode && (
                 <span className="rounded-full border border-border px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {plan.translation.quality_mode}
+                  {localizeQualityMode(plan.translation.quality_mode, t)}
                 </span>
               )}
             </div>
           </div>
-          <p className="text-lg leading-relaxed text-foreground" lang={lang}>
+          <p className="text-lg leading-relaxed text-foreground" lang={language}>
             {plan.translation.summary}
           </p>
           {plan.translation.top_actions.length > 0 && (
@@ -432,7 +479,7 @@ const Results = () => {
             <div className="mt-5 flex flex-wrap gap-2">
               {plan.translation.glossary_hits.map((term) => (
                 <span key={term} className="rounded-full border border-primary/20 bg-primary-soft px-3 py-1 text-xs text-primary">
-                  {ui.glossary}: {term}
+                  {t("glossary")}: {term}
                 </span>
               ))}
             </div>
@@ -441,7 +488,7 @@ const Results = () => {
 
         {plan.suspected_conditions && plan.suspected_conditions.length > 0 && (
           <section className="mt-6">
-            <h2 className="font-display text-2xl font-semibold mb-4">{ui.suspectedConditions}</h2>
+            <h2 className="font-display text-2xl font-semibold mb-4">{t("suspectedConditions")}</h2>
             <div className="grid sm:grid-cols-2 gap-3">
               {plan.suspected_conditions.map((condition, index) => (
                 <div key={index} className="rounded-2xl border border-border/70 bg-card p-5 shadow-soft">
@@ -454,18 +501,18 @@ const Results = () => {
                           ? "border-risk-routine/40 text-risk-routine bg-risk-routine/10"
                           : "border-border text-muted-foreground"
                     }`}>
-                      {localizeLikelihood(condition.likelihood, ui)}
+                      {localizeLikelihood(condition.likelihood, t)}
                     </span>
                   </div>
                   <div className="mt-1.5 text-xs text-muted-foreground space-x-3">
                     {condition.icd10 && (
                       <span>
-                        {ui.icd10}: <span className="font-mono text-foreground/70">{condition.icd10}</span>
+                        {t("icd10")}: <span className="font-mono text-foreground/70">{condition.icd10}</span>
                       </span>
                     )}
                     {condition.ayurveda_dosha && (
                       <span>
-                        {ui.dosha}: <span className="text-foreground/70">{condition.ayurveda_dosha}</span>
+                        {t("dosha")}: <span className="text-foreground/70">{condition.ayurveda_dosha}</span>
                       </span>
                     )}
                   </div>
@@ -479,7 +526,7 @@ const Results = () => {
           <section className="mt-6 rounded-3xl border border-warning/30 bg-warning/5 p-6 md:p-7">
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle className="h-5 w-5 text-warning" />
-              <h2 className="font-display text-2xl font-semibold">{ui.safetyReview}</h2>
+              <h2 className="font-display text-2xl font-semibold">{t("safetyReview")}</h2>
             </div>
             <ul className="space-y-3">
               {plan.warnings.map((warning, index) => (
@@ -491,14 +538,14 @@ const Results = () => {
                         ? "bg-warning text-warning-foreground"
                         : "bg-secondary text-secondary-foreground"
                   }`}>
-                    {localizeSeverity(warning.severity, ui)}
+                    {localizeSeverity(warning.severity, t)}
                   </span>
                   <div>
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground">{localizeWarningType(warning.type, ui)}</div>
+                    <div className="text-xs uppercase tracking-wider text-muted-foreground">{localizeWarningType(warning.type, t)}</div>
                     <div className="text-foreground mt-0.5">{warning.message}</div>
                     {warning.resolution && (
                       <div className="text-sm text-muted-foreground mt-1">
-                        {ui.resolution}: {warning.resolution}
+                        {t("resolution")}: {warning.resolution}
                       </div>
                     )}
                   </div>
@@ -509,67 +556,289 @@ const Results = () => {
         )}
 
         <section className="mt-8">
-          <h2 className="font-display text-3xl font-semibold mb-5">{ui.integrativePlan}</h2>
-          <div className="grid gap-5 lg:grid-cols-2">
-            {plan.plan_segments.map((segment, index) => {
-              const Icon = MODALITY_ICON[segment.modality];
-              const isPrimary = segment.priority === "primary";
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-5">
+            <div>
+              <h2 className="font-display text-3xl md:text-[2.6rem] font-semibold tracking-tight">
+                {t("recommendedCarePlan")}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">
+                {plan.translation.care_path || plan.care_path}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full border border-border bg-card px-3 py-1.5 text-muted-foreground">
+                {t("route")}: {getLocalizedRouteLabel(plan.clinical_route, language)}
+              </span>
+              {plan.llm_metadata?.model && plan.llm_metadata.available && (
+                <span className="rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-primary">
+                  {t("offlineModel")}: {plan.llm_metadata.model}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            {[primaryTreatmentCard].map((card, index) => {
+              const segment = card.segment;
+              const Icon = segment ? MODALITY_ICON[segment.modality] : Home;
+              const tone = getTreatmentCardTone(card.emphasis);
+              const leadRecommendation = segment?.recommendations[0] ?? null;
+              const supportingRecommendations = segment?.recommendations.slice(1, card.key === "primary" ? 4 : 3) ?? [];
+
               return (
-                <div
-                  key={index}
-                  className={`rounded-3xl border p-6 md:p-7 shadow-soft transition-smooth ${
-                    segment.selected
-                      ? isPrimary
-                        ? "border-primary/50 bg-card shadow-glow"
-                        : "border-border/70 bg-card"
-                      : "border-border/50 bg-muted/30"
-                  }`}
+                <article
+                  key={card.key}
+                  className={`flex h-full flex-col rounded-[2rem] border p-5 md:p-6 shadow-soft ${tone.card}`}
                 >
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${isPrimary ? "bg-gradient-primary text-primary-foreground" : "bg-primary-soft text-primary"}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone.icon}`}>
                         <Icon className="h-5 w-5" />
                       </div>
                       <div>
-                        <div className="font-display text-xl font-semibold">
-                          {getLocalizedModalityLabel(segment.modality, lang)}
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${tone.pill}`}>
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                            {card.heading}
+                          </span>
                         </div>
-                        <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                          {localizePriority(segment.priority, ui)} {segment.selected ? `· ${ui.activePath}` : `· ${ui.optionalPath}`}
-                        </div>
+                        {segment ? (
+                          <>
+                            <h3 className="font-display text-[2rem] leading-none font-semibold tracking-tight">
+                              {getLocalizedModalityLabel(segment.modality, language)}
+                            </h3>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {t("modalityLabel")}: {localizePriority(segment.priority, t)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                            {card.key === "home" ? t("homeRemedySupport") : t("secondaryTreatmentHint")}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <ul className="space-y-4">
-                    {segment.recommendations.map((recommendation, recommendationIndex) => (
-                      <li key={recommendationIndex} className="border-l-2 border-primary/30 pl-4">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <div className="font-semibold text-foreground">{recommendation.title}</div>
-                          <EvidenceBadge meta={tierMeta[recommendation.evidence_tier]} />
+
+                  {segment && leadRecommendation ? (
+                    <>
+                      <div className={`mt-6 rounded-3xl border p-5 ${tone.lead}`}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            {card.heading}
+                          </div>
+                          <EvidenceBadge meta={tierMeta[leadRecommendation.evidence_tier]} />
                         </div>
-                        <p className="text-sm text-muted-foreground leading-relaxed">{recommendation.detail}</p>
-                        {recommendation.when_to_use && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {ui.whenToUse}: {recommendation.when_to_use}
-                          </p>
-                        )}
-                        {recommendation.safety_note && (
-                          <p className="mt-1 text-xs text-warning-foreground">
-                            {ui.safety}: {recommendation.safety_note}
-                          </p>
-                        )}
-                        {recommendation.source && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <BookOpen className="h-3 w-3" />
-                            <span>{recommendation.source}</span>
+                        <h4 className="mt-3 text-xl font-semibold leading-snug text-foreground">
+                          {leadRecommendation.title}
+                        </h4>
+                        <p className="mt-4 text-sm leading-7 text-foreground/80">
+                          {leadRecommendation.detail}
+                        </p>
+                        {(leadRecommendation.when_to_use || leadRecommendation.safety_note) && (
+                          <div className="mt-4 space-y-2 text-xs leading-6 text-muted-foreground">
+                            {leadRecommendation.when_to_use && (
+                              <p>
+                                <span className="font-semibold text-foreground/80">{t("whenToUse")}:</span>{" "}
+                                {leadRecommendation.when_to_use}
+                              </p>
+                            )}
+                            {leadRecommendation.safety_note && (
+                              <p className="text-warning-foreground">
+                                <span className="font-semibold">{t("safetyNav")}:</span>{" "}
+                                {leadRecommendation.safety_note}
+                              </p>
+                            )}
                           </div>
                         )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      </div>
+
+                      {supportingRecommendations.length > 0 && (
+                        <div className="mt-4 grid gap-3 auto-rows-fr lg:grid-cols-2">
+                          {supportingRecommendations.map((recommendation, recommendationIndex) => (
+                            <div key={recommendationIndex} className={`flex h-full flex-col rounded-2xl border p-4 ${tone.support}`}>
+                              <div className="flex min-w-0 gap-3">
+                                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+                                  {recommendationIndex + 2}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                      {card.heading}
+                                    </div>
+                                    <EvidenceBadge meta={tierMeta[recommendation.evidence_tier]} />
+                                  </div>
+                                  <div className="mt-3 font-semibold leading-snug text-foreground">
+                                    {recommendation.title}
+                                  </div>
+                                  <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                                    {recommendation.detail}
+                                  </p>
+                                </div>
+                              </div>
+                              {(recommendation.when_to_use || recommendation.safety_note) && (
+                                <div className="mt-3 space-y-1 text-xs leading-6 text-muted-foreground sm:pl-10">
+                                  {recommendation.when_to_use && (
+                                    <p>
+                                      <span className="font-semibold text-foreground/80">{t("whenToUse")}:</span>{" "}
+                                      {recommendation.when_to_use}
+                                    </p>
+                                  )}
+                                  {recommendation.safety_note && (
+                                    <p className="text-warning-foreground">
+                                      <span className="font-semibold">{t("safetyNav")}:</span>{" "}
+                                      {recommendation.safety_note}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className={`mt-6 rounded-3xl border p-5 text-sm text-muted-foreground ${tone.lead}`}>
+                      {card.key === "home" ? t("homeRemedySupport") : t("secondaryTreatmentHint")}
+                    </div>
+                  )}
+                </article>
               );
             })}
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              {supportingTreatmentCards.map((card, index) => {
+                const segment = card.segment;
+                const Icon = segment ? MODALITY_ICON[segment.modality] : Home;
+                const tone = getTreatmentCardTone(card.emphasis);
+                const leadRecommendation = segment?.recommendations[0] ?? null;
+                const supportingRecommendations = segment?.recommendations.slice(1, card.key === "primary" ? 4 : 3) ?? [];
+
+                return (
+                  <article
+                    key={card.key}
+                    className={`flex h-full flex-col rounded-[2rem] border p-5 md:p-6 shadow-soft ${tone.card}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone.icon}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${tone.pill}`}>
+                              {String(index + 2).padStart(2, "0")}
+                            </span>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                              {card.heading}
+                            </span>
+                          </div>
+                          {segment ? (
+                            <>
+                              <h3 className="font-display text-[2rem] leading-none font-semibold tracking-tight">
+                                {getLocalizedModalityLabel(segment.modality, language)}
+                              </h3>
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                {t("modalityLabel")}: {localizePriority(segment.priority, t)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                              {card.key === "home" ? t("homeRemedySupport") : t("secondaryTreatmentHint")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {segment && leadRecommendation ? (
+                      <>
+                        <div className={`mt-6 rounded-3xl border p-5 ${tone.lead}`}>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {card.heading}
+                            </div>
+                            <EvidenceBadge meta={tierMeta[leadRecommendation.evidence_tier]} />
+                          </div>
+                          <h4 className="mt-3 text-xl font-semibold leading-snug text-foreground">
+                            {leadRecommendation.title}
+                          </h4>
+                          <p className="mt-4 text-sm leading-7 text-foreground/80">
+                            {leadRecommendation.detail}
+                          </p>
+                          {(leadRecommendation.when_to_use || leadRecommendation.safety_note) && (
+                            <div className="mt-4 space-y-2 text-xs leading-6 text-muted-foreground">
+                              {leadRecommendation.when_to_use && (
+                                <p>
+                                  <span className="font-semibold text-foreground/80">{t("whenToUse")}:</span>{" "}
+                                  {leadRecommendation.when_to_use}
+                                </p>
+                              )}
+                              {leadRecommendation.safety_note && (
+                                <p className="text-warning-foreground">
+                                  <span className="font-semibold">{t("safetyNav")}:</span>{" "}
+                                  {leadRecommendation.safety_note}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {supportingRecommendations.length > 0 && (
+                          <div className="mt-4 grid gap-3 auto-rows-fr">
+                            {supportingRecommendations.map((recommendation, recommendationIndex) => (
+                              <div key={recommendationIndex} className={`flex h-full flex-col rounded-2xl border p-4 ${tone.support}`}>
+                                <div className="flex min-w-0 gap-3">
+                                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+                                    {recommendationIndex + 2}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        {card.heading}
+                                      </div>
+                                      <EvidenceBadge meta={tierMeta[recommendation.evidence_tier]} />
+                                    </div>
+                                    <div className="mt-3 font-semibold leading-snug text-foreground">
+                                      {recommendation.title}
+                                    </div>
+                                    <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                                      {recommendation.detail}
+                                    </p>
+                                  </div>
+                                </div>
+                                {(recommendation.when_to_use || recommendation.safety_note) && (
+                                  <div className="mt-3 space-y-1 text-xs leading-6 text-muted-foreground sm:pl-10">
+                                    {recommendation.when_to_use && (
+                                      <p>
+                                        <span className="font-semibold text-foreground/80">{t("whenToUse")}:</span>{" "}
+                                        {recommendation.when_to_use}
+                                      </p>
+                                    )}
+                                    {recommendation.safety_note && (
+                                      <p className="text-warning-foreground">
+                                        <span className="font-semibold">{t("safetyNav")}:</span>{" "}
+                                        {recommendation.safety_note}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className={`mt-6 rounded-3xl border p-5 text-sm text-muted-foreground ${tone.lead}`}>
+                        {card.key === "home" ? t("homeRemedySupport") : t("secondaryTreatmentHint")}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
 
@@ -577,7 +846,7 @@ const Results = () => {
           <section className="mt-8 rounded-3xl border border-risk-urgent/30 bg-risk-urgent/5 p-6 md:p-7">
             <h2 className="font-display text-xl font-semibold mb-3 flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-risk-urgent" />
-              {ui.watchForThese}
+              {t("watchForThese")}
             </h2>
             <ul className="grid sm:grid-cols-2 gap-2">
               {plan.red_flags_to_watch.map((flag, index) => (
@@ -591,10 +860,10 @@ const Results = () => {
         )}
 
         <section className="mt-8 rounded-3xl border border-border/70 bg-card p-6 md:p-7">
-          <h2 className="font-display text-xl font-semibold mb-2">{ui.whyThisPlan}</h2>
+          <h2 className="font-display text-xl font-semibold mb-2">{t("whyThisPlan")}</h2>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.triggeredRules}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("triggeredRules")}</div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.explainability.triggered_rules.map((rule) => (
                   <li key={rule} className="rounded-xl bg-muted/60 px-3 py-2 text-foreground/80">
@@ -604,15 +873,15 @@ const Results = () => {
               </ul>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.hybridTriage}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("hybridTriage")}</div>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <div>{ui.logisticProbability}: {(plan.explainability.triage_model.logistic_probability * 100).toFixed(0)}%</div>
-                <div>{ui.boostingScore}: {(plan.explainability.triage_model.gradient_boosting_score * 100).toFixed(0)}%</div>
-                <div>{ui.ensembleProbability}: {(plan.explainability.triage_model.ensemble_probability * 100).toFixed(0)}%</div>
+                <div>{t("logisticProbability")}: {(plan.explainability.triage_model.logistic_probability * 100).toFixed(0)}%</div>
+                <div>{t("boostingScore")}: {(plan.explainability.triage_model.gradient_boosting_score * 100).toFixed(0)}%</div>
+                <div>{t("ensembleProbability")}: {(plan.explainability.triage_model.ensemble_probability * 100).toFixed(0)}%</div>
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.riskFactors}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("riskFactors")}</div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.explainability.risk_factors.map((factor) => (
                   <li key={factor} className="flex gap-2">
@@ -623,17 +892,17 @@ const Results = () => {
               </ul>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.normalizedSymptoms}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("normalizedSymptoms")}</div>
               <div className="flex flex-wrap gap-2">
                 {plan.explainability.normalized_symptoms.map((symptom) => (
-                  <span key={symptom.normalized} className="rounded-full border border-border px-3 py-1 text-xs">
-                    {symptom.normalized} · {localizeSeverity(symptom.severity, ui)}
+                  <span key={`${symptom.normalized}-${symptom.severity}`} className="rounded-full border border-border px-3 py-1 text-xs">
+                    {symptom.normalized} · {localizeSeverity(symptom.severity, t)}
                   </span>
                 ))}
               </div>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.safetyChecks}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("safetyChecks")}</div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.explainability.safety_checks.map((check) => (
                   <li key={check} className="flex gap-2">
@@ -644,7 +913,7 @@ const Results = () => {
               </ul>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.evidenceTrace}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("evidenceTrace")}</div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.explainability.evidence_trace.map((item) => (
                   <li key={item} className="flex gap-2">
@@ -655,7 +924,7 @@ const Results = () => {
               </ul>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{ui.workflowTrace}</div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("workflowTrace")}</div>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 {plan.explainability.workflow_trace.map((item) => (
                   <li key={item} className="rounded-xl bg-muted/60 px-3 py-2 text-foreground/80">
@@ -669,14 +938,14 @@ const Results = () => {
         </section>
 
         <section className="mt-8 rounded-3xl border border-border/70 bg-card p-6 md:p-7">
-          <h2 className="font-display text-xl font-semibold mb-2">{ui.safetyResolutionAgent}</h2>
+          <h2 className="font-display text-xl font-semibold mb-2">{t("safetyResolutionAgent")}</h2>
           <p className="text-muted-foreground leading-relaxed">{plan.safety_review}</p>
         </section>
 
         <section className="mt-8 rounded-3xl border border-border/70 bg-card p-6 md:p-7">
           <h2 className="font-display text-xl font-semibold mb-3 flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
-            {ui.provenance}
+            {t("provenance")}
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
             {plan.provenance.map((source) => (
@@ -687,7 +956,7 @@ const Results = () => {
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">{source.citation}</p>
                 <div className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">
-                  {localizeSourceModality(source.modality, lang, ui)}
+                  {localizeSourceModality(source.modality, language, t)}
                 </div>
               </div>
             ))}
@@ -696,10 +965,10 @@ const Results = () => {
 
         <div className="mt-10 flex flex-wrap gap-3 justify-center">
           <Button asChild variant="outline" className="rounded-full">
-            <Link to="/intake">{ui.startNewIntake}</Link>
+            <Link to="/intake">{t("startNewIntake")}</Link>
           </Button>
           <Button asChild className="rounded-full bg-gradient-primary text-primary-foreground shadow-glow">
-            <Link to="/clinician">{ui.requestClinicianReview}</Link>
+            <Link to="/clinician">{t("requestClinicianReview")}</Link>
           </Button>
         </div>
       </main>
