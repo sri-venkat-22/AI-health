@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BookOpen,
+  MessageSquareQuote,
   Home,
   Languages,
   Leaf,
@@ -13,13 +14,16 @@ import {
   Droplets,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LANGUAGES, getLanguageNative, type LanguageCode } from "@/lib/languages";
+import { addAuditEntry } from "@/lib/localStore";
 import { sanitizeTextList } from "@/lib/textSanitizers";
 import { getLocalizedModalityLabel, getLocalizedRouteLabel, localizePlanForLanguage } from "@/lib/planLocalization";
 import type { EvidenceTier, IntegrativePlan, Modality, RiskLevel } from "@/lib/types";
+import { toast } from "sonner";
 
 interface EvidenceBadgeMeta {
   shortCode: string;
@@ -263,6 +267,8 @@ const Results = () => {
   const [loading, setLoading] = useState(true);
   const [localizing, setLocalizing] = useState(false);
   const [planTranslationWarning, setPlanTranslationWarning] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("sanjeevani:plan");
@@ -318,6 +324,36 @@ const Results = () => {
     () => (plan ? sanitizeTextList(plan.translation.top_actions) : []),
     [plan],
   );
+
+  const saveFeedback = () => {
+    const notes = feedback.trim();
+    if (!notes) {
+      toast.error(t("feedbackRequired"));
+      return;
+    }
+
+    setFeedbackSaving(true);
+    try {
+      const planId = sessionStorage.getItem("sanjeevani:plan-id") || "results-session";
+      addAuditEntry({
+        actor_id: null,
+        action: "plan.feedback",
+        resource_type: "plan",
+        resource_id: planId,
+        metadata: {
+          notes,
+          language,
+          risk_level: plan?.risk_level ?? null,
+        },
+      });
+      setFeedback("");
+      toast.success(t("feedbackSaved"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("genericTryAgain"));
+    } finally {
+      setFeedbackSaving(false);
+    }
+  };
 
   if (loading || !sourcePlan) {
     return (
@@ -928,16 +964,6 @@ const Results = () => {
                 ))}
               </ul>
             </div>
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{t("workflowTrace")}</div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                {plan.explainability.workflow_trace.map((item) => (
-                  <li key={item} className="rounded-xl bg-muted/60 px-3 py-2 text-foreground/80">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
           <div className="mt-4 text-xs text-muted-foreground italic border-t border-border/60 pt-4">{plan.disclaimer}</div>
         </section>
@@ -965,6 +991,32 @@ const Results = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-border/70 bg-card p-6 md:p-7">
+          <h2 className="font-display text-xl font-semibold mb-2 flex items-center gap-2">
+            <MessageSquareQuote className="h-5 w-5 text-primary" />
+            {t("resultsFeedbackTitle")}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">{t("resultsFeedbackDescription")}</p>
+          <Textarea
+            value={feedback}
+            onChange={(event) => setFeedback(event.target.value)}
+            placeholder={t("resultsFeedbackPlaceholder")}
+            rows={4}
+            className="rounded-2xl"
+          />
+          <div className="mt-4 flex justify-end">
+            <Button
+              type="button"
+              onClick={saveFeedback}
+              disabled={feedbackSaving}
+              className="rounded-full bg-gradient-primary text-primary-foreground shadow-glow"
+            >
+              {feedbackSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {t("submitFeedback")}
+            </Button>
           </div>
         </section>
 
